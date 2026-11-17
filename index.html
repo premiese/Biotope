@@ -542,7 +542,7 @@ kbd{font-family:var(--mono);font-size:10.5px;border:1px solid var(--line2);borde
  "title": "도시생태현황지도 제작",
  "vars": {},
  "css": "",
- "js": "",
+ "js": "// 사이트 이름 고정: 브라우저 탭 제목 + 왼쪽 위 로고 글자\n(() => {\n  const NAME = '도시생태현황지도 제작';\n  if (window.__gbNameLock) return;          // 두 번 실행돼도 한 번만 동작\n  window.__gbNameLock = true;\n\n  const fix = () => {\n    if (document.title !== NAME) document.title = NAME;\n    const b = document.querySelector('.brand b');\n    if (b && b.textContent !== NAME) b.textContent = NAME;\n  };\n  fix();\n\n  // 제목이나 로고가 바뀌면 다시 고정\n  const head = document.querySelector('title') || document.head;\n  new MutationObserver(fix).observe(head, { childList: true, characterData: true, subtree: true });\n  const brand = document.querySelector('.brand');\n  if (brand) new MutationObserver(fix).observe(brand, { childList: true, characterData: true, subtree: true });\n})();",
  "texts": [],
  "vworldKey": "B1C08559-6A06-4ACE-973E-54C4DD0C798E",
  "github": {
