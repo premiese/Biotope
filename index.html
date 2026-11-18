@@ -2102,8 +2102,13 @@ function roadPixels(px, md, W, H, q) {
   const med = (h, n) => { let s = 0; for (let k = 0; k < 256; k++) { s += h[k]; if (s >= n / 2) return k; } return 255; };
   const m = med(hist, cnt), hd = new Uint32Array(256); for (let i = 0; i < N; i++) if (M[i]) hd[Math.min(255, Math.abs(Lm[i] - m))]++;
   const sd = Math.max(4, 1.4826 * med(hd, cnt)), thr = Math.max(m + q.sens * sd, m + 18);
+  // 녹색 비율(G/(R+G+B))이 대상 중앙값보다 뚜렷이 낮아야 함 — 영상마다 색감이 달라 상대값으로 판단
+  const gh = new Uint32Array(1001);
+  for (let i = 0, j = 0; i < N; i++, j += 4) if (M[i]) gh[Math.round(1000 * px[j + 1] / (px[j] + px[j + 1] + px[j + 2] + 1))]++;
+  let g05 = 0, g50 = 0; for (let k = 0, acc = 0; k <= 1000; k++) { acc += gh[k]; if (!g05 && acc >= cnt * 0.05) g05 = k / 1000; if (acc >= cnt / 2) { g50 = k / 1000; break; } }
+  const gsT = g50 - g05 < 0.02 ? 1 : g50 - 0.4 * (g50 - g05); // 색이 옅은 영상은 밝기만으로 판단
   let C = new Uint8Array(N);
-  for (let i = 0, j = 0; i < N; i++, j += 4) if (M[i] && Lm[i] > thr && 2 * px[j + 1] - px[j] - px[j + 2] <= 12) C[i] = 1;
+  for (let i = 0, j = 0; i < N; i++, j += 4) if (M[i] && Lm[i] > thr && px[j + 1] / (px[j] + px[j + 1] + px[j + 2] + 1) <= gsT) C[i] = 1;
   // 닫힘(3×3 팽창 → 침식)으로 작은 틈 메우기
   const dil = new Uint8Array(N), ero = new Uint8Array(N);
   for (let y = 1; y < H - 1; y++) for (let x = 1; x < W - 1; x++) { const i = y * W + x; if (C[i] || C[i - 1] || C[i + 1] || C[i - W] || C[i + W] || C[i - W - 1] || C[i - W + 1] || C[i + W - 1] || C[i + W + 1]) dil[i] = 1; }
