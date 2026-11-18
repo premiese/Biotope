@@ -939,7 +939,7 @@ function J() {
   if (!GF) GF = new jsts.geom.GeometryFactory();
 }
 const XY = (x, y) => new jsts.geom.Coordinate(Math.round(x * 1000) / 1000, Math.round(y * 1000) / 1000);
-const tokMatch = (v, list) => { v = String(v == null ? '' : v); return list.some((p) => v.startsWith(p) || (p.length >= 2 && v.includes(p))); };
+const tokMatch = (v, list) => { v = String(v == null ? '' : v); return list.some((p) => v.startsWith(p) || ((p.length >= 2 || /[^\x00-\x7f]/.test(p)) && v.includes(p))); };
 const splitList = (s) => String(s == null ? '' : s).split(/[,\s]+/).map((x) => x.trim()).filter(Boolean);
 function colOfL(L, name) { const i = L.fields.findIndex((f) => f.name === name); return i >= 0 ? L.cols[i] : null; }
 function perim(L, f) { let p = 0; const c = L.coords, rs = L.ringStart; for (let r = L.featRing[f]; r < L.featRing[f + 1]; r++) for (let i = rs[r] + 1; i < rs[r + 1]; i++) p += Math.hypot(c[2 * i] - c[2 * i - 2], c[2 * i + 1] - c[2 * i - 1]); return p; }
@@ -2024,7 +2024,7 @@ function guideHTML() {
 
 
 // ---------- 실시간 진행 표시(지도 위) ----------
-const APP_VER = '2026.11.18-4';
+const APP_VER = '2026.11.18-5';
 const LIVE = { src: new ol.source.Vector({ wrapX: false }) };
 LIVE.styles = {
   tgt: new ol.style.Style({ stroke: new ol.style.Stroke({ color: 'rgba(255,255,255,.9)', width: 1.2, lineDash: [5, 4] }) }),
@@ -2061,7 +2061,7 @@ function askAllow(base, allow) {
 
 // ---------- 항공영상에서 임도 찾기 (브이월드 영상 → 밝고 길쭉한 선형 지물) ----------
 const ROAD_CACHE = new Map();
-const tokMatchM = (v, list) => { v = String(v == null ? '' : v); return list.some((p) => v.startsWith(p) || (p.length >= 2 && v.includes(p))); };
+const tokMatchM = (v, list) => { v = String(v == null ? '' : v); return list.some((p) => v.startsWith(p) || ((p.length >= 2 || /[^\x00-\x7f]/.test(p)) && v.includes(p))); };
 const splitListM = (s) => String(s == null ? '' : s).split(/[,\s]+/).map((x) => x.trim()).filter(Boolean);
 const WM = 20037508.342789244;
 function roadTileURL(z, x, y) { if (window.GB_ROAD_TILE) return window.GB_ROAD_TILE(z, x, y); const k = vwKey(); if (!k) throw new Error('브이월드 인증키가 없음 — 상단 “키 설정”'); return `https://api.vworld.kr/req/wmts/1.0.0/${encodeURIComponent(k)}/Satellite/${z}/${y}/${x}.jpeg`; }
