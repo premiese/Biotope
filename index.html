@@ -309,6 +309,36 @@ button,input,select,textarea{font:inherit;color:inherit}
 .dl .btn b{display:block;font-size:13px}
 .dl .btn small{color:var(--muted);font-size:10.5px}
 .note{background:#f6f8f7;border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-size:11.5px;color:var(--muted);margin-top:8px}
+#app.lp-wide{grid-template-columns:86px 560px 1fr 370px}
+.ri.guide{background:#f3f6fb}.ri.guide.on{background:linear-gradient(160deg,#2f6fd6,#24365f)}
+.gd section{padding:12px 18px;border-bottom:1px solid var(--line)}
+.gd h4{margin:0 0 6px;font-size:14.5px;color:var(--navy)}
+.gd p,.gd li{font-size:12.5px;line-height:1.75;margin:4px 0}
+.gd ol,.gd ul{padding-left:18px;margin:4px 0}
+.gd blockquote{margin:8px 0;padding:10px 12px;background:#f2f8f5;border-left:4px solid var(--acc);border-radius:6px;font-size:13px;line-height:1.7}
+.gd cite{display:block;font-size:11px;color:var(--muted);font-style:normal;margin-top:4px}
+.gd .dim{color:var(--muted);font-size:11.5px}
+.gd .lk a{display:block;padding:8px 10px;border:1px solid var(--line);border-radius:8px;margin-bottom:6px;color:var(--blue);text-decoration:none;font-size:12.5px}
+.gd .lk a:hover{border-color:var(--blue);background:#f3f7ff}
+.pick{display:grid;grid-template-columns:1fr 1fr;gap:6px;padding:0 12px 10px}
+.pk{border:1.5px solid var(--line2);background:#fff;border-radius:9px;padding:9px 8px;cursor:pointer;font-weight:600;font-size:12.5px;position:relative;text-align:center;word-break:keep-all}
+.pk:hover{border-color:var(--acc)}
+.pk.on{border-color:var(--acc);background:var(--acc);color:#fff;box-shadow:0 2px 8px rgba(31,138,91,.25)}
+.pk i{position:absolute;top:5px;right:6px;width:7px;height:7px;border-radius:50%;background:var(--acc)}.pk.on i{background:#fff}
+.crit{border:1px solid var(--line);border-radius:8px;max-height:230px;overflow:auto}
+.ci{display:flex;gap:7px;align-items:flex-start;padding:7px 9px;border-bottom:1px solid var(--line);cursor:pointer;font-size:12px}
+.ci:last-child{border-bottom:0}.ci input{margin-top:3px}
+.ci b{display:block;font-size:12.5px}.ci em{font-style:normal;font-size:10.5px;color:var(--acc-d);background:#e7f5ee;border-radius:99px;padding:0 6px}
+.ci small{display:block;color:var(--muted);font-size:11px;line-height:1.45;margin-top:2px}
+.ci.off{opacity:.5}
+.cbl{display:flex;gap:6px;align-items:center;font-size:12px;margin:8px 0 2px;cursor:pointer}
+.cc{border:1px solid var(--line);border-radius:10px;padding:10px;margin-bottom:8px;background:#fff}
+.cc.off{opacity:.55}
+.cc textarea{margin:6px 0;resize:vertical;font-size:12.5px;line-height:1.5}
+.cp{display:flex;flex-wrap:wrap;gap:8px 10px;align-items:flex-end}
+.cp label{display:flex;flex-direction:column;font-size:11px;color:var(--muted);gap:2px}
+.cp .cbl{flex-direction:row;color:var(--text)}
+.cc .hint{font-size:11px;color:var(--dim);margin-top:6px}
 /* 하단 */
 #status{grid-column:1/-1;display:flex;gap:18px;align-items:center;padding:0 14px;background:#fff;border-top:1px solid var(--line);font:11px var(--mono);color:var(--muted)}
 #status .sp{flex:1}
@@ -338,7 +368,7 @@ button,input,select,textarea{font:inherit;color:inherit}
       <svg width="40" height="34" viewBox="0 0 40 34"><circle cx="20" cy="7" r="4" fill="#24365f"/><path d="M4 30c2-9 8-14 16-14s14 5 16 14" fill="none" stroke="#24365f" stroke-width="3" stroke-linecap="round"/><circle cx="9" cy="27" r="5" fill="#1f8a5b"/><circle cx="31" cy="27" r="5" fill="#2f9b6a"/><path d="M15 31c3-6 7-6 10 0" fill="#7cc576"/></svg>
       <div class="brand"><b>도시생태현황지도 제작</b><small>기초자료 선택 → 결과 지도 도출</small></div>
     </div>
-    <nav class="nav"><button data-nav="help">사용 안내</button><button data-nav="data">기초자료</button><button data-nav="out">결과 지도</button><button data-nav="stats">통계·내보내기</button></nav>
+    <nav class="nav"><button data-nav="help">사이트 안내</button><button data-nav="data">기초자료</button><button data-nav="out">결과 지도</button><button data-nav="stats">통계·내보내기</button></nav>
     <div class="tright">
       <select class="sel" id="crsSel" title="작업 좌표계 — 면적 계산과 결과 SHP 좌표계"></select>
       <span class="chip" id="modeChip" title="내 키 설정"><i></i><span>키 설정</span></span>
@@ -787,21 +817,32 @@ function fill(tpl, ctx) { return String(tpl).replace(/\{([^{}]+)\}/g, (m, k) => 
 
 async function analyze(m) {
   const job = m.job; CANCEL.delete(job);
-  const B = LAYERS.get(m.base); if (!B || B.geom !== 'poly') throw new Error('기준 경계 레이어(폴리곤)가 없음');
+  const B0 = LAYERS.get(m.base); if (!B0 || B0.geom !== 'poly') throw new Error('기준 경계 레이어(폴리곤)가 없음');
   const inputs = m.inputs.map((it) => ({ ...it, L: LAYERS.get(it.id) })).filter((it) => it.L);
   inputs.forEach((it) => { const fi = it.L.fields.findIndex((f) => f.name === it.field); it.col = fi >= 0 ? it.L.cols[fi] : null; it.last = -1; });
   const clipL = m.clip ? LAYERS.get(m.clip) : null;
   const rules = m.rules.map((r, i) => { try { return { ...r, fn: compileRule(r.when), i }; } catch (e) { throw new Error(`규칙 ${i + 1}(${r.name}) 조건식 오류: ${e.message}`); } });
   const lookups = m.lookups || {};
   const maxS = m.samples || 100, minSp = m.minSpacing || 1;
+  const crit = (m.criteria || []).filter((c) => c.op && c.op !== 'memo');
+  const t0 = Date.now();
+  // 1) 작업기준에 따라 기준 경계를 고침
+  let B = B0, shaped = null;
+  const pA = crit.length ? 40 : 0, pB = m.dissolve ? 88 : 100;
+  if (crit.length) {
+    try { shaped = await shapeBase(B0, m, crit, job, 0, pA); }
+    catch (e) { if (e === CANCELLED) { post({ type: 'cancelled', job }); return; } throw e; }
+    B = shaped.L;
+  }
+  // 2) 중첩·판정
   const n = B.n, code = new Int32Array(n).fill(-1), area = new Float64Array(n);
   const outCode = new Array(n), outName = new Array(n);
   const summ = inputs.map(() => ({ v: new Array(n), r: new Float32Array(n) }));
-  const stats = new Map(); let t0 = Date.now(), lastPost = 0, clipLast = -1;
+  let lastPost = 0, clipLast = -1;
   for (let f = 0; f < n; f++) {
     if ((f & 511) === 0) {
       if (CANCEL.has(job)) { CANCEL.delete(job); post({ type: 'cancelled', job }); return; }
-      if (Date.now() - lastPost > 150) { lastPost = Date.now(); prog(job, 100 * f / n, `중첩·판정 ${f.toLocaleString()} / ${n.toLocaleString()}`); await tick(); }
+      if (Date.now() - lastPost > 150) { lastPost = Date.now(); prog(job, pA + (pB - pA) * f / n, `중첩·판정 ${f.toLocaleString()} / ${n.toLocaleString()}`); await tick(); }
     }
     const A = featArea(B, f); area[f] = A;
     const x0 = B.bbox[4 * f], y0 = B.bbox[4 * f + 1], x1 = B.bbox[4 * f + 2], y1 = B.bbox[4 * f + 3];
@@ -849,25 +890,347 @@ async function analyze(m) {
       const lk = lookups[key]; if (lk) ctx[key + '명'] = lk[String(ctx[key])] || '';
     });
     const P = ctxProxy(ctx);
-    for (const r of rules) {
+    const fc = shaped && shaped.meta.fc[f];
+    if (fc) { code[f] = fc.ri; outCode[f] = fill(fc.code, P); outName[f] = fill(fc.name, P); }
+    else for (const r of rules) {
       let ok = false; try { ok = r.fn(P); } catch (e) { ok = false; }
       if (ok) { code[f] = r.i; outCode[f] = fill(r.code, P); outName[f] = fill(r.name, P); break; }
     }
-    const kc = code[f] >= 0 ? outCode[f] + '\u0001' + outName[f] + '\u0001' + code[f] : '\u0001미분류\u0001-1';
-    const s = stats.get(kc) || { n: 0, area: 0 }; s.n++; s.area += A; stats.set(kc, s);
+  }
+  let res = { n, code, area, outCode, outName, summ, L: B, meta: shaped ? shaped.meta : null };
+  // 3) 같은 유형 이웃 폴리곤 합치기
+  if (m.dissolve) {
+    try { res = await dissolveSame(res, job, pB, 99); }
+    catch (e) { if (e === CANCELLED) { post({ type: 'cancelled', job }); return; } throw e; }
   }
   prog(job, 100, '완료');
-  post({
-    type: 'analyzed', job, n, code, area, outCode, outName,
-    summary: inputs.map((it, j) => ({ key: it.key, ascii: it.ascii, geom: it.L.geom, v: summ[j].v, r: summ[j].r })),
+  const stats = new Map();
+  for (let f = 0; f < res.n; f++) {
+    if (res.code[f] === -2) continue;
+    const kc = res.code[f] >= 0 ? res.outCode[f] + '\u0001' + res.outName[f] + '\u0001' + res.code[f] : '\u0001미분류\u0001-1';
+    const s = stats.get(kc) || { n: 0, area: 0 }; s.n++; s.area += res.area[f]; stats.set(kc, s);
+  }
+  const msg = {
+    type: 'analyzed', job, n: res.n, code: res.code, area: res.area, outCode: res.outCode, outName: res.outName,
+    summary: inputs.map((it, j) => ({ key: it.key, ascii: it.ascii, geom: it.L.geom, v: res.summ[j].v, r: res.summ[j].r })),
     stats: [...stats].map(([k, s]) => { const [c, nm, ri] = k.split('\u0001'); return { code: c, name: nm, rule: +ri, n: s.n, area: s.area }; }),
-    secs: (Date.now() - t0) / 1000
-  }, [code.buffer, area.buffer]);
+    secs: (Date.now() - t0) / 1000, shapeLog: shaped ? shaped.log : null, dissolved: !!m.dissolve
+  };
+  const tr = [res.code.buffer, res.area.buffer];
+  if (shaped || m.dissolve) {
+    const L = res.L, g = { coords: L.coords.slice(), ringStart: L.ringStart.slice(), featRing: L.featRing.slice(), outer: L.outer.slice() };
+    msg.geom = g; tr.push(g.coords.buffer, g.ringStart.buffer, g.featRing.buffer, g.outer.buffer);
+    const mt = res.meta;
+    msg.meta = mt ? { src: mt.src, crit: mt.crit, chk: mt.chk } : null;
+  }
+  post(msg, tr);
+}
+
+// ---------- 경계 작업기준 (JSTS 위상 연산) ----------
+const CANCELLED = { cancelled: true };
+let GF = null;
+function J() {
+  if (!self.jsts) importScripts('https://cdn.jsdelivr.net/npm/jsts@2.12.1/dist/jsts.min.js');
+  if (!GF) GF = new jsts.geom.GeometryFactory();
+}
+const XY = (x, y) => new jsts.geom.Coordinate(Math.round(x * 1000) / 1000, Math.round(y * 1000) / 1000);
+const splitList = (s) => String(s == null ? '' : s).split(/[,\s]+/).map((x) => x.trim()).filter(Boolean);
+function colOfL(L, name) { const i = L.fields.findIndex((f) => f.name === name); return i >= 0 ? L.cols[i] : null; }
+function perim(L, f) { let p = 0; const c = L.coords, rs = L.ringStart; for (let r = L.featRing[f]; r < L.featRing[f + 1]; r++) for (let i = rs[r] + 1; i < rs[r + 1]; i++) p += Math.hypot(c[2 * i] - c[2 * i - 2], c[2 * i + 1] - c[2 * i - 1]); return p; }
+function toJsts(L, f) {
+  const polys = []; let shell = null, holes = [];
+  const flush = () => { if (shell) { try { polys.push(GF.createPolygon(shell, holes)); } catch (e) { } } shell = null; holes = []; };
+  for (let r = L.featRing[f]; r < L.featRing[f + 1]; r++) {
+    const s = L.ringStart[r], e = L.ringStart[r + 1], cs = [];
+    for (let i = s; i < e; i++) { const q = XY(L.coords[2 * i], L.coords[2 * i + 1]); if (!cs.length || !q.equals2D(cs[cs.length - 1])) cs.push(q); }
+    if (cs.length && !cs[0].equals2D(cs[cs.length - 1])) cs.push(cs[0].copy());
+    if (cs.length < 4) continue;
+    let ring; try { ring = GF.createLinearRing(cs); } catch (err) { continue; }
+    if (L.outer[r] || !shell) { flush(); shell = ring; } else holes.push(ring);
+  }
+  flush();
+  let g = polys.length === 1 ? polys[0] : GF.createMultiPolygon(polys);
+  try { if (!g.isValid()) g = polysOnly(g.buffer(0)); } catch (e) { }
+  return g;
+}
+function fixG(g) { try { return g.isValid() ? g : g.buffer(0); } catch (e) { return g; } }
+function redG(g) { try { return jsts.precision.GeometryPrecisionReducer.reduce(g, new jsts.geom.PrecisionModel(100)); } catch (e) { return g; } }
+function OP(op, a, b) {
+  try { return a[op](b); } catch (e1) { }
+  try { return fixG(a)[op](fixG(b)); } catch (e2) { }
+  try { return redG(a)[op](redG(b)); } catch (e3) { }
+  return null;
+}
+function polysOnly(g) {
+  if (!g) return null;
+  const t = g.getGeometryType();
+  if (t === 'Polygon' || t === 'MultiPolygon') return g;
+  const ps = [];
+  const walk = (x) => { const tt = x.getGeometryType(); if (tt === 'Polygon') { if (!x.isEmpty()) ps.push(x); } else if (tt === 'MultiPolygon' || tt === 'GeometryCollection') for (let k = 0; k < x.getNumGeometries(); k++) walk(x.getGeometryN(k)); };
+  walk(g);
+  return ps.length === 1 ? ps[0] : GF.createMultiPolygon(ps);
+}
+function unionAll(arr) {
+  if (!arr.length) return null; if (arr.length === 1) return arr[0];
+  try { return jsts.operation.union.UnaryUnionOp.union(GF.createGeometryCollection(arr)); }
+  catch (e) { let u = arr[0]; for (let i = 1; i < arr.length; i++) u = OP('union', u, arr[i]) || u; return u; }
+}
+const envOf = (g) => { const e = g.getEnvelopeInternal(); return [e.getMinX(), e.getMinY(), e.getMaxX(), e.getMaxY()]; };
+class GIdx {
+  constructor(ext, n) { this.cs = Math.max(5, Math.sqrt(Math.max(ext[2] - ext[0], 1) * Math.max(ext[3] - ext[1], 1) / Math.max(1, n)) * 1.5); this.x0 = ext[0]; this.y0 = ext[1]; this.m = new Map(); }
+  each(e, fn) {
+    const cs = this.cs, a = Math.floor((e[0] - this.x0) / cs), b = Math.floor((e[1] - this.y0) / cs), c = Math.floor((e[2] - this.x0) / cs), d = Math.floor((e[3] - this.y0) / cs);
+    for (let y = b; y <= d; y++) for (let x = a; x <= c; x++) fn((x + 1e5) * 4e5 + (y + 1e5));
+  }
+  insert(id, e) { this.each(e, (k) => { let a = this.m.get(k); if (!a) this.m.set(k, a = []); a.push(id); }); }
+  query(e) { const s = new Set(); this.each(e, (k) => { const a = this.m.get(k); if (a) for (const i of a) s.add(i); }); return [...s]; }
+}
+async function shapeBase(B, m, crit, job, p0, p1) {
+  J();
+  const baseCol = m.baseField ? colOfL(B, m.baseField) : null;
+  const X = { B, items: [], idx: new GIdx(B.extent, B.n), log: [] };
+  for (let f = 0; f < B.n; f++) {
+    const it = { src: f, g: null, val: baseCol && baseCol[f] != null ? String(baseCol[f]).trim() : '', fc: null, crit: [], chk: [], mod: false, dead: false };
+    X.items.push(it);
+    if (B.bbox[4 * f] <= B.bbox[4 * f + 2]) X.idx.insert(f, [B.bbox[4 * f], B.bbox[4 * f + 1], B.bbox[4 * f + 2], B.bbox[4 * f + 3]]);
+  }
+  const step = (p1 - p0) / crit.length;
+  for (let k = 0; k < crit.length; k++) {
+    const c = crit[k], a = p0 + step * k, b = a + step;
+    prog(job, a, `작업기준 ${k + 1}/${crit.length} · ${c.title}`); await tick();
+    const fn = { cluster: opCluster, replace: opReplace, absorb: opAbsorb, minarea: opAbsorb }[c.op];
+    if (!fn) continue;
+    const before = X.items.filter((it) => !it.dead).length;
+    const msg = await fn(X, c.op === 'minarea' ? { ...c, tgt: '', nbr: '', maxWidth: 0, surround: 0, minarea: true } : c, job, a, b);
+    X.log.push({ id: c.id, title: c.title, op: c.op, msg, before, after: X.items.filter((it) => !it.dead).length });
+  }
+  prog(job, p1, '고친 경계 정리 중'); await tick();
+  return itemsToLayer(X);
+}
+const G = (X, it) => (it.g || (it.g = toJsts(X.B, it.src)));
+const areaOf = (X, it) => (it.mod ? it.g.getArea() : featArea(X.B, it.src));
+const perOf = (X, it) => (it.mod ? it.g.getLength() : perim(X.B, it.src));
+const alive = (X) => (i) => !X.items[i].dead;
+function addItem(X, it) { X.items.push(it); X.idx.insert(X.items.length - 1, envOf(it.g)); return it; }
+const chkTag = (c) => '영상 확인: ' + c.title;
+async function maybeYield(job, k, a, b, tot, text) {
+  if ((k & 63) !== 0) return;
+  if (CANCEL.has(job)) { CANCEL.delete(job); throw CANCELLED; }
+  prog(job, a + (b - a) * k / Math.max(1, tot), text); await tick();
+}
+function cutItem(X, i, by) {
+  const it = X.items[i], r = polysOnly(OP('difference', G(X, it), by));
+  if (!r) return false;
+  it.g = r; it.mod = true; if (r.isEmpty() || r.getArea() < 0.5) it.dead = true;
+  return true;
+}
+async function opCluster(X, c, job, a, b) {
+  const L = LAYERS.get(c.layer);
+  if (!L || L.geom !== 'point') return '점 자료가 없어 건너뜀 — “' + (c.layerName || '현장조사 결과') + '” 탭에 점 SHP를 올릴 것';
+  const col = c.field ? colOfL(L, c.field) : null, kws = splitList(c.filt);
+  const pts = [];
+  for (let i = 0; i < L.n; i++) {
+    if (L.featRing[i + 1] <= L.featRing[i]) continue;
+    if (kws.length) { const v = col ? col[i] : null; if (v == null || !kws.some((k) => String(v).includes(k))) continue; }
+    const s = L.ringStart[L.featRing[i]]; pts.push([L.coords[2 * s], L.coords[2 * s + 1]]);
+  }
+  const d = Math.max(0.1, +c.dist || 15), par = pts.map((_, i) => i);
+  const find = (i) => { while (par[i] !== i) { par[i] = par[par[i]]; i = par[i]; } return i; };
+  const grid = new Map(), gk = (x, y) => x + ',' + y;
+  pts.forEach((p, i) => { const k = gk(Math.floor(p[0] / d), Math.floor(p[1] / d)); let a2 = grid.get(k); if (!a2) grid.set(k, a2 = []); a2.push(i); });
+  pts.forEach((p, i) => {
+    const gx = Math.floor(p[0] / d), gy = Math.floor(p[1] / d);
+    for (let dx = -1; dx <= 1; dx++) for (let dy = -1; dy <= 1; dy++) {
+      const arr = grid.get(gk(gx + dx, gy + dy)); if (!arr) continue;
+      for (const j of arr) if (j > i) { const q = pts[j]; if ((p[0] - q[0]) ** 2 + (p[1] - q[1]) ** 2 <= d * d) { const ri = find(i), rj = find(j); if (ri !== rj) par[ri] = rj; } }
+    }
+  });
+  const groups = new Map(); pts.forEach((p, i) => { const r = find(i); let g = groups.get(r); if (!g) groups.set(r, g = []); g.push(p); });
+  const allow = splitList(c.allow), minN = Math.max(1, +c.minN || 3);
+  const cl = [...groups.values()].filter((g) => g.length >= minN);
+  let made = 0, outside = 0, small = 0, k = 0;
+  for (const g of cl) {
+    await maybeYield(job, k++, a, b, cl.length, `${c.title} — 군집 ${k}/${cl.length}`);
+    const hull = GF.createMultiPointFromCoords(g.map((p) => XY(p[0], p[1]))).convexHull().buffer(Math.max(0.5, +c.buf || 0), 4);
+    const pieces = [], cut = [];
+    for (const i of X.idx.query(envOf(hull)).filter(alive(X))) {
+      const it = X.items[i];
+      if (allow.length && !allow.some((p) => it.val.startsWith(p))) continue;
+      const gi = G(X, it); if (!gi.intersects(hull)) continue;
+      const pc = polysOnly(OP('intersection', gi, hull)); if (pc && !pc.isEmpty() && pc.getArea() > 0.01) { pieces.push(pc); cut.push(i); }
+    }
+    if (!pieces.length) { outside++; continue; }
+    const ng = polysOnly(unionAll(pieces));
+    if (!ng || ng.isEmpty() || ng.getArea() < (+c.minArea || 0)) { small++; continue; }
+    for (const i of cut) cutItem(X, i, hull);
+    addItem(X, { src: -1, g: ng, val: String(c.code || ''), fc: c.fc || null, crit: [c.title], chk: c.chk ? [chkTag(c)] : [], mod: true, dead: false });
+    made++;
+  }
+  return `대상 점 ${pts.length}개 · ${minN}개 이상 군집 ${cl.length}곳 → 새 경계 ${made}곳` + (outside ? ` · 허용 대상(${allow.join(',')}) 밖 ${outside}곳 제외` : '') + (small ? ` · 최소 면적 미달 ${small}곳 제외` : '');
+}
+async function opReplace(X, c, job, a, b) {
+  const L = LAYERS.get(c.layer);
+  if (!L || L.geom !== 'poly') return '면 자료가 없어 건너뜀';
+  const col = c.field ? colOfL(L, c.field) : null, pre = splitList(c.filt);
+  let made = 0, same = 0, tot = 0;
+  for (let s = 0; s < L.n; s++) {
+    await maybeYield(job, s, a, b, L.n, `${c.title} — ${s.toLocaleString()}/${L.n.toLocaleString()}`);
+    if (pre.length) { const v = col ? col[s] : null; if (v == null || !pre.some((p) => String(v).trim().startsWith(p))) continue; }
+    const A = featArea(L, s); if (+c.minArea && A < +c.minArea) continue;
+    if (+c.minWidth && 2 * A / Math.max(perim(L, s), 1e-9) < +c.minWidth) continue;
+    tot++;
+    const sg = toJsts(L, s); if (sg.isEmpty()) continue;
+    const pieces = [], cut = [];
+    for (const i of X.idx.query(envOf(sg)).filter(alive(X))) {
+      const gi = G(X, X.items[i]); if (!gi.intersects(sg)) continue;
+      const pc = polysOnly(OP('intersection', gi, sg)); if (pc && !pc.isEmpty() && pc.getArea() > 0.01) { pieces.push(pc); cut.push(i); }
+    }
+    if (!pieces.length) continue;
+    const val = col && col[s] != null ? String(col[s]).trim() : '';
+    if (cut.length === 1) { // 이미 같은 모양이면 속성만 표시
+      const it = X.items[cut[0]], a1 = areaOf(X, it), a2 = pieces[0].getArea();
+      if (Math.abs(a1 - a2) <= 0.005 * a1 + 0.5) { it.val = val || it.val; if (c.fc) it.fc = c.fc; it.crit.push(c.title); if (c.chk) it.chk.push(chkTag(c)); same++; continue; }
+    }
+    const ng = polysOnly(unionAll(pieces)); if (!ng || ng.isEmpty()) continue;
+    for (const i of cut) cutItem(X, i, sg);
+    addItem(X, { src: -1, g: ng, val, fc: c.fc || null, crit: [c.title], chk: c.chk ? [chkTag(c)] : [], mod: true, dead: false });
+    made++;
+  }
+  return `조건에 맞는 폴리곤 ${tot}개 → 경계 새로 끼움 ${made}개` + (same ? ` · 이미 같은 경계 ${same}개(속성만 표시)` : '');
+}
+async function opAbsorb(X, c, job, a, b) {
+  const tgt = splitList(c.tgt), nbr = splitList(c.nbr), W = +c.maxWidth || 0, A = +c.maxArea || 0, sp = (+c.surround || 0) / 100;
+  const hasP = (it, list) => list.some((p) => it.val.startsWith(p) || (it.fc && String(it.fc.code).startsWith(p)));
+  const list = [];
+  X.items.forEach((it, i) => {
+    if (it.dead) return;
+    if (tgt.length && !hasP(it, tgt)) return;
+    if (!W && !A) { list.push([i, areaOf(X, it)]); return; }
+    const ar = areaOf(X, it), w = 2 * ar / Math.max(perOf(X, it), 1e-9);
+    if ((W && w < W) || (A && ar < A)) list.push([i, ar]);
+  });
+  list.sort((p, q) => p[1] - q[1]);
+  let merged = 0, kept = 0, k = 0;
+  for (const [i] of list) {
+    await maybeYield(job, k++, a, b, list.length, `${c.title} — ${k}/${list.length}`);
+    const t = X.items[i]; if (t.dead) continue;
+    const tg = G(X, t); let zone;
+    try { zone = tg.buffer(1, 2); } catch (e) { kept++; continue; }
+    const ring = Math.max(zone.getArea() - tg.getArea(), 1e-9);
+    let best = -1, bestA = 0, tot = 0;
+    for (const j of X.idx.query(envOf(zone))) {
+      if (j === i) continue; const n = X.items[j]; if (n.dead) continue;
+      if (nbr.length && !hasP(n, nbr)) continue;
+      const ngm = G(X, n); if (!ngm.intersects(zone)) continue;
+      const iz = OP('intersection', ngm, zone), ia = iz ? iz.getArea() : 0;
+      tot += ia; if (ia > bestA) { bestA = ia; best = j; }
+    }
+    if (best < 0 || bestA < 0.05 || (sp && tot / ring < sp)) { kept++; continue; }
+    const n = X.items[best], u = polysOnly(OP('union', G(X, n), tg));
+    if (!u || u.isEmpty()) { kept++; continue; }
+    n.g = u; n.mod = true; if (!n.crit.includes(c.title)) n.crit.push(c.title); if (c.chk && !n.chk.includes(chkTag(c))) n.chk.push(chkTag(c));
+    t.dead = true; X.idx.insert(best, envOf(u)); merged++;
+  }
+  return `대상 ${list.length}개 중 이웃에 합침 ${merged}개` + (kept ? ` · 조건 미달로 남김 ${kept}개` : '');
+}
+function emitRing(arr, coords, exterior) {
+  let cs = arr; const ccw = jsts.algorithm.Orientation.isCCW(cs);
+  if (exterior === ccw) cs = cs.slice().reverse(); // 외곽=시계방향, 구멍=반시계방향
+  for (const q of cs) coords.push(q.x, q.y);
+  return cs.length;
+}
+function itemsToLayer(X) {
+  const B = X.B, coords = [], rs = [], fr = [0], meta = { src: [], fc: [], crit: [], chk: [], item: [] };
+  let pi = 0;
+  for (let ii = 0; ii < X.items.length; ii++) {
+    const it = X.items[ii];
+    if (it.dead) continue;
+    const r0 = rs.length;
+    if (!it.mod) {
+      for (let r = B.featRing[it.src]; r < B.featRing[it.src + 1]; r++) {
+        rs.push(pi); for (let i = B.ringStart[r]; i < B.ringStart[r + 1]; i++) { coords.push(B.coords[2 * i], B.coords[2 * i + 1]); pi++; }
+      }
+    } else {
+      const g = it.g;
+      for (let k = 0; k < g.getNumGeometries(); k++) {
+        const p = g.getGeometryN(k); if (p.getGeometryType() !== 'Polygon' || p.isEmpty() || p.getArea() < 0.01) continue;
+        rs.push(pi); pi += emitRing(p.getExteriorRing().getCoordinates(), coords, true);
+        for (let h = 0; h < p.getNumInteriorRing(); h++) { rs.push(pi); pi += emitRing(p.getInteriorRingN(h).getCoordinates(), coords, false); }
+      }
+    }
+    if (rs.length === r0) continue;
+    fr.push(rs.length);
+    meta.src.push(it.src); meta.item.push(ii); meta.fc.push(it.fc); meta.crit.push(it.crit.join('; ')); meta.chk.push(it.chk.join('; '));
+  }
+  rs.push(pi);
+  const L = { geom: 'poly', n: fr.length - 1, coords: Float64Array.from(coords), ringStart: Uint32Array.from(rs), featRing: Uint32Array.from(fr), fields: [], cols: [] };
+  computeBBoxes(L); buildIndex(L); ringFlags(L);
+  meta.src = Int32Array.from(meta.src);
+  return { L, meta, log: X.log };
+}
+async function dissolveSame(res, job, p0, p1) {
+  J();
+  const L = res.L, n = res.n, key = new Array(n);
+  for (let f = 0; f < n; f++) key[f] = res.code[f] === -2 ? null : res.code[f] >= 0 ? res.outCode[f] + '\u0001' + res.outName[f] + '\u0001' + res.code[f] : '\u0001미분류';
+  const gs = new Array(n), par = new Int32Array(n).map((_, i) => i);
+  const find = (i) => { while (par[i] !== i) { par[i] = par[par[i]]; i = par[i]; } return i; };
+  const I = L.idx;
+  for (let f = 0; f < n; f++) {
+    if ((f & 255) === 0) { if (CANCEL.has(job)) { CANCEL.delete(job); throw CANCELLED; } prog(job, p0 + (p1 - p0) * 0.6 * f / n, `같은 유형 이웃 찾는 중 ${f.toLocaleString()}/${n.toLocaleString()}`); await tick(); }
+    if (key[f] == null) continue;
+    const x0 = L.bbox[4 * f] - 0.01, y0 = L.bbox[4 * f + 1] - 0.01, x1 = L.bbox[4 * f + 2] + 0.01, y1 = L.bbox[4 * f + 3] + 0.01;
+    const cx0 = Math.max(0, Math.floor((x0 - I.X0) / I.cw)), cx1 = Math.min(I.gx - 1, Math.floor((x1 - I.X0) / I.cw));
+    const cy0 = Math.max(0, Math.floor((y0 - I.Y0) / I.ch)), cy1 = Math.min(I.gy - 1, Math.floor((y1 - I.Y0) / I.ch));
+    const seen = new Set();
+    for (let gy = cy0; gy <= cy1; gy++) for (let gx = cx0; gx <= cx1; gx++) {
+      const k = gy * I.gx + gx;
+      for (let i = I.start[k], e = I.start[k + 1]; i < e; i++) {
+        const j = I.items[i]; if (j <= f || seen.has(j)) continue; seen.add(j);
+        if (key[j] !== key[f] || find(j) === find(f)) continue;
+        if (L.bbox[4 * j] > x1 || L.bbox[4 * j + 2] < x0 || L.bbox[4 * j + 1] > y1 || L.bbox[4 * j + 3] < y0) continue;
+        const a = gs[f] || (gs[f] = toJsts(L, f)), b = gs[j] || (gs[j] = toJsts(L, j));
+        let touch = false; try { touch = a.intersects(b); } catch (e) { }
+        if (touch) par[find(f)] = find(j);
+      }
+    }
+  }
+  const comp = new Map();
+  for (let f = 0; f < n; f++) { if (key[f] == null) continue; const r = find(f); let c = comp.get(r); if (!c) comp.set(r, c = []); c.push(f); }
+  const X = { B: L, items: [], log: [] };
+  const pick = [];
+  let k = 0;
+  for (const mem of comp.values()) {
+    if ((k++ & 63) === 0) { if (CANCEL.has(job)) { CANCEL.delete(job); throw CANCELLED; } prog(job, p0 + (p1 - p0) * (0.6 + 0.4 * k / comp.size), `같은 유형 합치는 중 ${k.toLocaleString()}/${comp.size.toLocaleString()}`); await tick(); }
+    let big = mem[0]; for (const f of mem) if (res.area[f] > res.area[big]) big = f;
+    const crit = new Set(), chk = new Set();
+    if (res.meta) for (const f of mem) { String(res.meta.crit[f] || '').split('; ').filter(Boolean).forEach((x) => crit.add(x)); String(res.meta.chk[f] || '').split('; ').filter(Boolean).forEach((x) => chk.add(x)); }
+    if (mem.length === 1) { X.items.push({ src: mem[0], g: null, mod: false, dead: false, fc: null, crit: [...crit], chk: [...chk] }); }
+    else {
+      const u = polysOnly(unionAll(mem.map((f) => gs[f] || (gs[f] = toJsts(L, f)))));
+      if (mem.length > 1) crit.add('같은 유형 합침(' + mem.length + '개)');
+      X.items.push({ src: -1, g: u, mod: true, dead: !u || u.isEmpty(), fc: null, crit: [...crit], chk: [...chk] });
+    }
+    pick.push(big);
+  }
+  const out = itemsToLayer(X);
+  // itemsToLayer는 빈 도형을 건너뛰므로 살아남은 항목만 다시 짝지음
+  const keptPick = out.meta.item.map((ii) => pick[ii]);
+  const m = out.L.n, code = new Int32Array(m), area = new Float64Array(m), outCode = new Array(m), outName = new Array(m);
+  const summ = res.summ.map(() => ({ v: new Array(m), r: new Float32Array(m) }));
+  const src = new Int32Array(m);
+  for (let i = 0; i < m; i++) {
+    const f = keptPick[i]; code[i] = res.code[f]; outCode[i] = res.outCode[f]; outName[i] = res.outName[f]; area[i] = featArea(out.L, i);
+    res.summ.forEach((s, j) => { summ[j].v[i] = s.v[f]; summ[j].r[i] = s.r[f]; });
+    src[i] = res.meta ? res.meta.src[f] : f;
+  }
+  return { n: m, code, area, outCode, outName, summ, L: out.L, meta: { src, crit: out.meta.crit, chk: out.meta.chk, fc: [] } };
 }
 </script>
 <script>/* ===== 기초자료 분류(20개 탭) · 결과 지도 기본 규칙 ===== */
 const CATS = [
+  { id: 'info', guide: true, name: '사이트 안내', icon: '<circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.5v.5"/>' },
   { id: 'img', key: '영상', name: '위성·항공영상', raster: true, desc: '배경 정사영상 선택(브이월드·Sentinel-2)과 GeoTIFF 정사영상 올리기. 화면 표시용이며 판정에는 쓰지 않음.', src: '브이월드 영상 · Sentinel-2 L2A · 자체 정사영상', icon: '<rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 15l5-5 4 4 3-3 6 6"/><circle cx="16" cy="9" r="1.6"/>' },
+  { id: 'old', key: '과거', name: '과거지도', vecRaster: true, desc: '이전 차수 도시생태현황지도(비오톱 유형도)·과거 토지피복도·과거 현존식생도, 과거 항공사진(GeoTIFF). 변화 비교와 경계 참고용이며 규칙에서 과거 값으로 조건을 걸 수 있음(예: 중(과거,\'E11\')).', src: '이전 차수 도시생태현황지도 · 과거 토지피복지도(EGIS) · 국토정보플랫폼 과거 항공사진', fields: ['BIOTOP_CD', 'BT_CODE', 'TYPE_CD', 'L3_CODE', '유형코드', 'CODE', 'NAME'], icon: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/><path d="M3 12H1M5 5L3.5 3.5"/>' },
   { id: 'bnd', key: '경계', name: '행정경계·조사범위', desc: '사업 대상지·행정구역 경계. 결과 지도에서 “조사범위 안만”을 고르면 이 경계 안의 폴리곤만 결과로 나옴.', src: '통계청 SGIS 행정경계 · 과업 대상지 경계', fields: ['ADM_NM', 'EMD_KOR_NM', 'SIG_KOR_NM', 'CTP_KOR_NM', 'NAME', '명칭'], icon: '<path d="M4 5l5-2 6 2 5-2v16l-5 2-6-2-5 2z"/><path d="M9 3v16M15 5v16"/>' },
   { id: 'lc', key: '피복', name: '토지피복', desc: '환경부 세분류 토지피복지도. 결과 지도 대부분의 기준이 되는 핵심 자료(L3_CODE 권장).', src: '환경공간정보서비스(EGIS) 세분류 토지피복지도', fields: ['L3_CODE', 'L2_CODE', 'L1_CODE', 'L3_NAME', 'L2_NAME'], icon: '<rect x="3" y="3" width="8" height="8" rx="1"/><rect x="13" y="3" width="8" height="8" rx="1"/><rect x="3" y="13" width="8" height="8" rx="1"/><rect x="13" y="13" width="8" height="8" rx="1"/>' },
   { id: 'lu', key: '용도', name: '토지이용·용도지역', desc: '도시계획 용도지역·지구. 토지이용 분류 보조 자료.', src: '국토교통부 용도지역지구(UQ) · 토지이용계획', fields: ['UNAME', 'DGM_NM', 'PRPOS_AREA_DSTRC_NM', 'ATRB_SE', '용도지역'], icon: '<path d="M3 21V9l6-4 6 4v12"/><path d="M15 21V12l6-3v12"/><path d="M7 13h4M7 17h4"/>' },
@@ -886,7 +1249,8 @@ const CATS = [
   { id: 'prot', key: '보호', name: '보호지역·생태자연도', desc: '생태자연도 1등급·보호구역 등. 보호_면적률로 우수비오톱 판정.', src: '환경공간정보서비스 생태자연도 · 국가보호지역', fields: ['GRADE', '등급', 'ECO_GR', 'NAME'], icon: '<path d="M12 3l8 3v6c0 5-4 8-8 9-4-1-8-4-8-9V6z"/><path d="M9 12l2 2 4-4"/>' },
   { id: 'spc', key: '생물', name: '생물종·서식지', desc: '법정보호종·야생동물 출현 지점(점) 또는 서식지(면). 점은 폴리곤 안 개수(생물_수)로 판정.', src: '전국자연환경조사 · 현장 출현 기록', fields: ['SPC_NM', '종명', 'KOR_NM', 'GRADE'], icon: '<path d="M5 15c2-6 6-9 12-9-1 6-4 10-10 11"/><path d="M5 15l-2 4"/><circle cx="14" cy="9" r="1"/>' },
   { id: 'net', key: '생태축', name: '생태축·녹지축', desc: '광역·도시 생태축, 녹지 연결축.', src: '도시생태축 계획 · 광역생태축', fields: ['NAME', 'TYPE', '구분'], icon: '<circle cx="5" cy="12" r="2"/><circle cx="19" cy="6" r="2"/><circle cx="19" cy="18" r="2"/><path d="M7 11l10-4M7 13l10 4"/>' },
-  { id: 'etc', key: '현장', name: '현장조사·기타', desc: '현장조사 결과·기타 자료(산불피해지 등). 규칙에서 현장 값으로 우선 적용 가능.', src: '현장조사 야장 · 기타', fields: ['TYPE', '구분', 'NOTE', '비고'], icon: '<path d="M9 3h6l1 2h3v16H5V5h3z"/><path d="M8 11h8M8 15h6"/>' }
+  { id: 'etc', key: '현장', name: '현장조사 결과', desc: '현장조사 야장을 옮긴 점(묘지·산불·불법경작 등 확인 지점)·면(현장 확인 비오톱) 자료. 규칙에서 현장 값으로 우선 적용하고, “작업기준”에서 묘지 점 군집처럼 경계를 새로 그리는 근거로 씀.', src: '현장조사 야장 · 전자야장(GPS 점) · 비오톱 속성자료 조사표', fields: ['TYPE', '구분', '유형', 'BIOTOP', 'NOTE', '비고'], icon: '<path d="M12 21s-6-5.3-6-10a6 6 0 1 1 12 0c0 4.7-6 10-6 10z"/><circle cx="12" cy="11" r="2.2"/>' },
+  { id: 'misc', key: '기타', name: '기타 자료', desc: '산불피해지·개발사업지·문화재 등 그 밖의 참고 자료.', src: '산불피해지 · 개발사업 구역 · 기타', fields: ['TYPE', '구분', 'NOTE', '비고', 'NAME'], icon: '<path d="M9 3h6l1 2h3v16H5V5h3z"/><path d="M8 11h8M8 15h6"/>' }
 ];
 
 // 환경부 세분류 토지피복 코드 명칭
@@ -917,12 +1281,12 @@ const OUT_DEFAULTS = [
       R('D11', '논', '#fff59d', "시작(피복,'21') || 포함(농지,'논')"), R('D21', '밭', '#ffe082', "시작(피복,'22') || 포함(농지,'밭')"),
       R('D31', '시설재배지', '#ffd54f', "시작(피복,'23') || 포함(농지,'시설')"), R('D41', '과수원', '#dce775', "시작(피복,'24') || 포함(농지,'과수')"),
       R('D51', '기타재배지', '#e6ee9c', "시작(피복,'25')"),
-      R('E51', '산불피해지', '#8d6e63', "포함(현장,'산불') || 포함(임상,'산불')"),
+      R('E51', '산불피해지', '#8d6e63', "포함(현장,'산불') || 포함(기타,'산불') || 포함(임상,'산불')"),
       R('E11', '활엽수림', '#66bb6a', "(피복 == null || 시작(피복,'3')) && (포함(임상,'활엽') || (임상 == null && 시작(피복,'31')))"),
       R('E21', '침엽수림', '#2e7d32', "(피복 == null || 시작(피복,'3')) && (포함(임상,'침엽','소나무','잣나무','낙엽송','리기다','삼나무','편백') || (임상 == null && 시작(피복,'32')))"),
       R('E31', '혼효림', '#43a047', "(피복 == null || 시작(피복,'3')) && (포함(임상,'혼효') || (임상 == null && 시작(피복,'33')))"),
       R('E41', '죽림', '#9ccc65', "(피복 == null || 시작(피복,'3')) && 포함(임상,'죽')"),
-      R('F11', '자연초지', '#c5e1a5', "시작(피복,'411') || 포함(초지,'자연초지')"), R('F21', '인공초지(골프장·묘지 등)', '#aed581', "시작(피복,'42')"),
+      R('F11', '자연초지', '#c5e1a5', "시작(피복,'411') || 포함(초지,'자연초지')"), R('F22', '묘지', '#b9c98e', "시작(피복,'422')"), R('F21', '인공초지(골프장·묘지 등)', '#aed581', "시작(피복,'42')"),
       R('G11', '하천', '#64b5f6', "시작(피복,'711') || 수역_면적률 >= 0.5"), R('G21', '호소·저수지', '#42a5f5', "시작(피복,'712')"),
       R('G31', '내륙습지', '#4db6ac', "시작(피복,'51') || 습지_면적률 >= 0.5"), R('G41', '연안습지·해양', '#26a69a', "시작(피복,'52','72')"),
       R('H11', '자연나지', '#d7ccc8', "시작(피복,'61')"), R('H21', '인공나지(채광·공사지)', '#bcaaa4', "시작(피복,'62')"),
@@ -969,12 +1333,32 @@ const OUT_DEFAULTS = [
     ]
   }
 ];
+
+/* ===== 경계 작업기준 — 용역별로 바꿔 쓰는 비오톱 경계 작성 기준 =====
+   op: cluster(점 군집 → 새 경계) · replace(다른 자료 경계 따르기) · absorb(좁거나 작은 폴리곤을 이웃에 합치기) · minarea(최소 면적 정리) · memo(기록만, 수작업) */
+const CRIT_OPS = {
+  cluster: { name: '점 군집 → 새 경계 그리기', hint: '현장조사 점이 일정 거리 안에 일정 개수 이상 모이면 그 범위를 새 폴리곤으로 잘라내고 지정한 유형을 줌 (예: 묘지).' },
+  replace: { name: '다른 자료의 경계 따르기', hint: '지정한 자료(예: 토지피복 도로)의 폴리곤 모양대로 기준 경계를 잘라 끼워 넣음. 폭·면적 조건으로 “큰 도로”만 고를 수 있음.' },
+  absorb: { name: '좁거나 작은 폴리곤을 이웃에 합치기', hint: '조건에 맞는 폴리곤(예: 산림 안의 좁은 도로)을 둘러싼 이웃(예: 산림)에 합쳐 경계를 지움.' },
+  minarea: { name: '최소 면적 미만 정리', hint: '정한 면적보다 작은 조각을 맞닿은 길이가 가장 긴 이웃에 합침.' },
+  memo: { name: '기록만 (수작업·영상 판독 기준)', hint: '자동으로 처리할 수 없는 기준. 성과품(Excel·SHP 묶음)의 작업기준 목록에 기록만 함.' }
+};
+const CRIT_DEFAULTS = {
+  biotope: [
+    { id: 'c1', on: true, op: 'cluster', title: '묘지 경계', text: '묘지 포인트가 3개 이상 모여 있고 정사영상에서 노출된 땅(초지·나지)처럼 보일 때 묘지 경계를 그림. 영상 판독으로 최종 확인.', p: { layerCat: 'etc', layer: '', filt: '묘', minN: 3, dist: 15, buf: 3, allow: '3,4,6', minArea: 20, code: 'F22', name: '묘지', chk: true } },
+    { id: 'c2', on: true, op: 'replace', title: '큰 도로는 토지피복 경계', text: '폭이 넓은 도로(대로·국도 등)는 토지피복지도의 도로 경계를 그대로 따름.', p: { layerCat: 'lc', layer: '', filt: '154', minWidth: 8, minArea: 0, code: 'B11', name: '도로', chk: false } },
+    { id: 'c3', on: true, op: 'absorb', title: '산지 안 도로는 보이는 곳만', text: '산에 있는 도로는 영상에서 눈으로 보이는 곳만 따고, 폭이 좁은 임도·소로는 주변 산림에 포함함. 남긴 도로는 영상 판독으로 확인.', p: { tgt: '154,B11', maxWidth: 6, maxArea: 0, nbr: '3,E', surround: 60, chk: true } },
+    { id: 'c4', on: false, op: 'minarea', title: '최소 작성 면적', text: '과업 지침의 최소 도면화 면적보다 작은 조각은 이웃 비오톱에 합침 (면적은 용역 지침에 맞게 입력).', p: { maxArea: 100 } },
+    { id: 'c5', on: true, op: 'memo', title: '영상 판독 기준', text: '자동 처리 후 “검토 필요(CHK)” 표시가 붙은 폴리곤은 최신 정사영상과 현장조사표로 경계를 확인·수정함.', p: {} }
+  ]
+};
 </script>
 <script>'use strict';
 /* ===== 도시생태현황지도 제작 — 메인 화면 ===== */
 const $ = (s, r = document) => r.querySelector(s), $$ = (s, r = document) => [...r.querySelectorAll(s)];
 const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const CAT = Object.fromEntries(CATS.map((c) => [c.id, c]));
+const DATA_CATS = CATS.filter((c) => !c.guide);
 const fmt = (n, d = 0) => (n == null || isNaN(n) ? '-' : Number(n).toLocaleString('ko-KR', { maximumFractionDigits: d, minimumFractionDigits: d }));
 const tick = () => new Promise((r) => setTimeout(r, 0));
 const today = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
@@ -1147,7 +1531,8 @@ async function askCRS(name) {
 async function addFiles(cid, fileList) {
   const files = [...fileList];
   const tifs = files.filter((f) => /\.tiff?$/i.test(f.name));
-  for (const f of tifs) await addRaster(f);
+  if (tifs.length && !(CAT[cid].raster || CAT[cid].vecRaster)) { toast('GeoTIFF 영상은 “위성·항공영상” 또는 “과거지도” 탭에 올릴 것', 'warn'); return; }
+  for (const f of tifs) await addRaster(f, null, cid);
   const groups = new Map();
   for (const f of files) {
     if (/\.tiff?$/i.test(f.name)) continue;
@@ -1234,17 +1619,18 @@ async function removeLayer(L) {
   for (const o of S.outputs) { if (S.results[o.id] && S.results[o.id].baseId === L.id) dropResult(o); }
   renderAll();
 }
-async function addRaster(file, fromDb) {
+async function addRaster(file, fromDb, cat) {
+  cat = (fromDb && fromDb.cat) || cat || 'img';
   const id = (fromDb && fromDb.id) || 'R' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
   try {
     const blob = fromDb ? fromDb.blob : file;
     const src = new ol.source.GeoTIFF({ sources: [{ blob }], normalize: true });
     const lm = LS.get('gb2.lm.' + id, {});
-    const L = { id, cat: 'img', kind: 'raster', name: lm.name || (fromDb ? fromDb.name : file.name), size: blob.size, visible: lm.visible !== false, opacity: lm.opacity == null ? 1 : lm.opacity, order: fromDb ? fromDb.order : Date.now() };
+    const L = { id, cat, kind: 'raster', name: lm.name || (fromDb ? fromDb.name : file.name), size: blob.size, visible: lm.visible !== false, opacity: lm.opacity == null ? 1 : lm.opacity, order: fromDb ? fromDb.order : Date.now() };
     L.ol = new ol.layer.WebGLTile({ source: src, opacity: L.opacity, visible: L.visible });
     S.layers.push(L); syncVecGroup();
     if (!fromDb) {
-      await DB.put({ id, kind: 'raster', cat: 'img', name: L.name, blob, order: L.order }).catch(() => { });
+      await DB.put({ id, kind: 'raster', cat, name: L.name, blob, order: L.order }).catch(() => { });
       src.getView().then((v) => { if (v && v.extent) view.fit(ol.proj.transformExtent(v.extent, v.projection || src.getProjection(), S.crs), { padding: [30, 30, 30, 30] }); }).catch((e) => toast('GeoTIFF 좌표계를 읽지 못함: ' + e.message, 'warn'));
       toast(L.name + ' 영상 추가');
     }
@@ -1255,11 +1641,12 @@ async function addRaster(file, fromDb) {
 // ---------- 결과 지도(출력) 정의 ----------
 function loadOutputs() {
   const saved = LS.get('gb2.outputs', null);
-  const defs = JSON.parse(JSON.stringify(OUT_DEFAULTS)).map((o) => ({ ...o, builtin: true }));
+  const defs = JSON.parse(JSON.stringify(OUT_DEFAULTS)).map((o) => ({ ...o, builtin: true, criteria: JSON.parse(JSON.stringify(CRIT_DEFAULTS[o.id] || [])) }));
   if (!saved) return defs;
   const byId = Object.fromEntries(saved.map((o) => [o.id, o]));
   const out = defs.map((d) => (byId[d.id] ? { ...d, ...byId[d.id], builtin: true } : d));
   saved.filter((o) => !OUT_DEFAULTS.some((d) => d.id === o.id)).forEach((o) => out.push(o));
+  out.forEach((o) => { if (!Array.isArray(o.criteria)) o.criteria = JSON.parse(JSON.stringify(CRIT_DEFAULTS[o.id] || [])); });
   return out;
 }
 function saveOutputs() { LS.set('gb2.outputs', S.outputs.map(({ run, exported, ...o }) => o)); }
@@ -1267,7 +1654,7 @@ S.outputs = loadOutputs();
 const curOut = () => S.outputs.find((o) => o.id === S.outId) || S.outputs[0];
 function keysIn(o) {
   const txt = o.rules.map((r) => r.when + ' ' + r.code + ' ' + r.name).join(' ');
-  return CATS.filter((c) => !c.raster && new RegExp('(^|[^가-힣A-Za-z0-9_])' + c.key + '(?![가-힣A-Za-z0-9])').test(txt)).map((c) => c.key);
+  return DATA_CATS.filter((c) => !c.raster && new RegExp('(^|[^가-힣A-Za-z0-9_])' + c.key + '(?![가-힣A-Za-z0-9])').test(txt)).map((c) => c.key);
 }
 function hasKey(k) { return S.layers.some((l) => l.kind === 'vector' && CAT[l.cat].key === k); }
 function baseCandidates() { return S.layers.filter((l) => l.kind === 'vector' && l.geom === 'poly'); }
@@ -1286,21 +1673,26 @@ function progressOf(o) {
   const s4 = o.exported && o.exported.size ? 100 : 0;
   return { need, s1, s2, s3, s4, all: Math.round(0.2 * s1 + 0.15 * s2 + 0.5 * s3 + 0.15 * s4), baseId, stale: res && res.rulesSig !== rulesSig(o) };
 }
-const rulesSig = (o) => JSON.stringify(o.rules) + '|' + (o.samples || 100) + '|' + (o.clip || '');
+const rulesSig = (o) => JSON.stringify(o.rules) + '|' + (o.samples || 100) + '|' + (o.clip || '') + '|' + JSON.stringify((o.criteria || []).filter((c) => c.on && c.op !== 'memo')) + '|' + !!o.dissolve;
 
 // ---------- 화면 그리기 ----------
 function renderAll() { renderRail(); renderPanel(); renderOutputs(); renderStepper(); }
 function renderRail() {
   $('#rail').innerHTML = CATS.map((c) => {
     const n = S.layers.filter((l) => l.cat === c.id).length;
-    return `<div class="ri ${S.cat === c.id ? 'on' : ''}" data-c="${c.id}" title="${esc(c.name)}"><svg viewBox="0 0 24 24">${c.icon}</svg><span>${esc(c.name.replace('·', '·​'))}</span>${n ? `<b>${n}</b>` : ''}</div>`;
+    return `<div class="ri ${S.cat === c.id ? 'on' : ''} ${c.guide ? 'guide' : ''}" data-c="${c.id}" title="${esc(c.name)}"><svg viewBox="0 0 24 24">${c.icon}</svg><span>${esc(c.name.replace('·', '·​'))}</span>${n ? `<b>${n}</b>` : ''}</div>`;
   }).join('');
   $$('#rail .ri').forEach((d) => d.onclick = () => { S.cat = d.dataset.c; if ($('#app').classList.contains('lp-off')) togglePanel(); renderRail(); renderPanel(); });
 }
 function renderPanel() {
-  const c = CAT[S.cat], ls = S.layers.filter((l) => l.cat === c.id).sort((a, b) => b.order - a.order);
+  const c = CAT[S.cat] || CAT.lc;
+  $('#app').classList.toggle('lp-wide', !!c.guide);
+  if (c.guide) { $('#lpanel').innerHTML = guideHTML(); setTimeout(() => map.updateSize(), 60); return; }
+  const ls = S.layers.filter((l) => l.cat === c.id).sort((a, b) => b.order - a.order);
   let h = `<div class="ph"><h3>${esc(c.name)} <span style="font-size:12px;color:var(--dim);font-weight:500">· 규칙 이름 <code class="mono">${esc(c.key)}</code></span></h3><p>${esc(c.desc)}</p><div class="src">자료 출처 예: ${esc(c.src)}</div></div>`;
-  if (c.raster) {
+  if (c.vecRaster) {
+    h += `<div class="drop" id="drop"><b>파일을 끌어다 놓거나 클릭</b>과거 비오톱·피복 SHP(ZIP) · GeoJSON · 과거 항공사진 GeoTIFF(.tif)</div>`;
+  } else if (c.raster) {
     h += `<div class="bm">${BASEMAPS.map((g) => `<div class="g">${esc(g.g)}</div>` + g.items.map(([v, t]) => `<label class="${S.basemap === v ? 'on' : ''}"><input type="radio" name="bm" value="${v}" ${S.basemap === v ? 'checked' : ''}> ${esc(t)}</label>`).join('')).join('')}</div>
       <div class="drop" id="drop"><b>GeoTIFF 정사영상 올리기</b>끌어다 놓거나 클릭 (.tif) — 표시용</div>`;
   } else {
@@ -1316,7 +1708,7 @@ function renderPanel() {
       ${L.col ? `<div class="m" style="margin-top:6px">값 예: ${esc(sampleVals(L).join(' · '))}</div>` : ''}</div>`).join('');
   h += `<div class="empty" id="store"></div>`;
   const p = $('#lpanel'); p.innerHTML = h;
-  const drop = $('#drop', p), inp = document.createElement('input'); inp.type = 'file'; inp.multiple = true; inp.accept = c.raster ? '.tif,.tiff' : '.shp,.dbf,.prj,.cpg,.shx,.zip,.geojson,.json';
+  const drop = $('#drop', p), inp = document.createElement('input'); inp.type = 'file'; inp.multiple = true; inp.accept = c.raster ? '.tif,.tiff' : '.shp,.dbf,.prj,.cpg,.shx,.zip,.geojson,.json' + (c.vecRaster ? ',.tif,.tiff' : '');
   inp.onchange = () => addFiles(c.id, inp.files);
   drop.onclick = () => inp.click();
   drop.ondragover = (e) => { e.preventDefault(); drop.classList.add('over'); };
@@ -1356,43 +1748,51 @@ function renderStepper() {
   $('#stTitle').innerHTML = `${esc(o.short || o.name)} <span>진행</span>`;
   $('#stAll').textContent = p.all + '%'; $('#stAllBar').firstChild.style.width = p.all + '%';
   $('#stAllBar').classList.toggle('run', !!(o.run && o.run.state === 'run'));
-  const st = [['① 기초자료 준비', p.s1, `${p.need.filter(hasKey).length}/${p.need.length}종`], ['② 기준 경계', p.s2, p.baseId ? '선택됨' : '미선택'], ['③ 중첩·판정', p.s3, o.run && o.run.state === 'run' ? '진행 중' : S.results[o.id] ? (p.stale ? '규칙 변경됨' : '완료') : '대기'], ['④ 성과품 내보내기', p.s4, o.exported && o.exported.size ? [...o.exported].join('·') : '대기']];
+  const st = [['① 기초자료 준비', p.s1, `${p.need.filter(hasKey).length}/${p.need.length}종`], ['② 기준 경계·작업기준', p.s2, p.baseId ? `작업기준 ${(o.criteria || []).filter((c) => c.on).length}개` : '미선택'], ['③ 중첩·판정', p.s3, o.run && o.run.state === 'run' ? '진행 중' : S.results[o.id] ? (p.stale ? '규칙 변경됨' : '완료') : '대기'], ['④ 성과품 내보내기', p.s4, o.exported && o.exported.size ? [...o.exported].join('·') : '대기']];
   $('#steps').innerHTML = st.map(([t, v, s]) => `<div class="stp"><div class="l"><b>${t}</b><span>${esc(s)} · ${Math.round(v)}%</span></div><div class="bar ${t.startsWith('③') && o.run && o.run.state === 'run' ? 'run' : ''}"><i style="width:${v}%"></i></div></div>`).join('');
 }
 function renderOutputs() {
   const o = curOut();
-  let h = `<div class="rh"><h3>결과 지도</h3><button class="btn" id="addOut">+ 지도 종류 추가</button></div>`;
-  h += S.outputs.map((x) => { const p = progressOf(x); const run = x.run && x.run.state === 'run'; const res = S.results[x.id];
-    return `<div class="oc ${x.id === o.id ? 'on' : ''}" data-o="${x.id}"><div class="t"><b>${esc(x.name)}</b><span>${p.all}%</span></div><div class="bar ${run ? 'run' : ''}"><i style="width:${p.all}%"></i></div><div class="s">${run ? `판정 중 ${Math.round(x.run.pct)}%` : res ? `${p.stale ? '⚠ 규칙이 바뀜 — 다시 도출 필요 · ' : ''}완료 · ${fmt(res.n)}개 폴리곤 · ${res.secs.toFixed(1)}초` : '아직 도출 전'}</div></div>`; }).join('');
+  let h = `<div class="rh"><h3>최종 성과품 선택</h3><button class="btn" id="addOut" title="지도 종류를 직접 만들어 추가">+ 지도 추가</button></div>
+    <div class="pick">${S.outputs.map((x) => `<button class="pk ${x.id === o.id ? 'on' : ''}" data-o="${x.id}" title="${esc(x.name)}">${esc(x.short || x.name)}${S.results[x.id] ? '<i title="도출 결과 있음"></i>' : ''}</button>`).join('')}</div>`;
   const p = progressOf(o), res = S.results[o.id], run = o.run && o.run.state === 'run';
   const bases = baseCandidates(), clipCands = S.layers.filter((l) => l.kind === 'vector' && l.geom === 'poly' && l.cat === 'bnd');
   if (!o.base || !layerById(o.base)) o.base = p.baseId;
+  const crit = o.criteria || [], con = crit.filter((c) => c.on);
   h += `<div class="det"><h4>${esc(o.name)}</h4><div class="d">${esc(o.desc || '')}</div>
-    <label class="f">기준 경계 레이어 — 결과 폴리곤의 경계가 됨</label>
+    <label class="f">기준 경계 레이어 — 결과 폴리곤 경계의 바탕</label>
     <select class="sel" id="oBase">${bases.length ? bases.map((l) => `<option value="${l.id}" ${l.id === o.base ? 'selected' : ''}>${esc(CAT[l.cat].name)} · ${esc(l.name)} (${fmt(l.n)})</option>`).join('') : '<option value="">— 면(폴리곤) 자료를 먼저 올릴 것 —</option>'}</select>
+    <label class="f">경계 작업기준 <span style="font-weight:400">— 용역별 비오톱 경계 작성 기준 (${con.length}/${crit.length}개 사용)</span></label>
+    <div class="crit">${crit.length ? crit.map((c) => `<label class="ci ${c.on ? '' : 'off'}"><input type="checkbox" data-ct="${c.id}" ${c.on ? 'checked' : ''}><span><b>${esc(c.title || '(제목 없음)')}</b><em>${esc((CRIT_OPS[c.op] || {}).name || '')}</em><small>${esc(c.text || '')}</small></span></label>`).join('') : '<div class="empty" style="padding:8px">아직 입력한 작업기준 없음</div>'}</div>
+    <div class="row" style="margin-top:6px"><button class="btn" id="oCrit" style="flex:1">작업기준 입력·편집</button></div>
+    <label class="cbl"><input type="checkbox" id="oDis" ${o.dissolve ? 'checked' : ''}> 판정 뒤 같은 유형끼리 맞닿은 폴리곤 합치기</label>
     <label class="f">분석 범위</label>
     <select class="sel" id="oClip"><option value="">기준 경계 전체</option>${clipCands.map((l) => `<option value="${l.id}" ${l.id === o.clip ? 'selected' : ''}>조사범위 안만: ${esc(l.name)}</option>`).join('')}</select>
     <label class="f">중첩 정밀도</label>
     <select class="sel" id="oSamp">${[[25, '빠름 — 폴리곤당 최대 25점'], [100, '보통 — 최대 100점 (권장)'], [400, '정밀 — 최대 400점']].map(([v, t]) => `<option value="${v}" ${(o.samples || 100) == v ? 'selected' : ''}>${t}</option>`).join('')}</select>
     <label class="f">규칙에 쓰인 기초자료 <span style="font-weight:400">(초록=있음, 주황=없음 — 없으면 해당 조건은 건너뜀)</span></label>
-    <div class="need">${p.need.map((k) => { const c = CATS.find((x) => x.key === k); return `<span class="${hasKey(k) ? 'y' : 'n'}" data-cat="${c.id}">${hasKey(k) ? '✓' : '＋'} ${esc(c.name)}</span>`; }).join('') || '<span>없음</span>'}</div>
-    <div class="row" style="margin-top:12px"><button class="btn pri block" id="oRun" ${!bases.length || run ? 'disabled' : ''}>${run ? `판정 중 ${Math.round(o.run.pct)}%` : res ? '결과 다시 도출' : '결과 도출'}</button>${run ? '<button class="btn" id="oStop">중지</button>' : ''}</div>
-    <div class="row" style="margin-top:6px"><button class="btn" id="oRules" style="flex:1">규칙 편집 (${o.rules.length}개)</button>${res ? `<button class="btn" id="oVis" style="flex:1">${res.layer && res.layer.getVisible() ? '결과 숨기기' : '결과 보기'}</button>` : ''}</div>`;
+    <div class="need">${p.need.map((k) => { const c = DATA_CATS.find((x) => x.key === k); return `<span class="${hasKey(k) ? 'y' : 'n'}" data-cat="${c.id}">${hasKey(k) ? '✓' : '＋'} ${esc(c.name)}</span>`; }).join('') || '<span>없음</span>'}</div>
+    <div class="row" style="margin-top:12px"><button class="btn pri block" id="oRun" ${!bases.length || run ? 'disabled' : ''}>${run ? `도출 중 ${Math.round(o.run.pct)}%` : res ? (p.stale ? '⚠ 기준이 바뀜 — 결과 다시 도출' : '결과 다시 도출') : '이 지도로 결과 도출'}</button>${run ? '<button class="btn" id="oStop">중지</button>' : ''}</div>
+    <div class="row" style="margin-top:6px"><button class="btn" id="oRules" style="flex:1">유형 판정 규칙 (${o.rules.length}개)</button>${res ? `<button class="btn" id="oVis" style="flex:1">${res.layer && res.layer.getVisible() ? '결과 숨기기' : '결과 보기'}</button>` : ''}</div>`;
   if (res) {
     const tot = res.stats.reduce((s, x) => s + x.area, 0);
     const rows = sortedStats(o, res);
-    h += `<div class="legend"><table><tr><th>유형</th><th style="text-align:right">개수</th><th style="text-align:right">면적(ha)</th><th style="text-align:right">비율</th></tr>${rows.map((s) => `<tr><td><i style="background:${s.color}"></i>${esc(s.code)} ${esc(s.name)}</td><td class="n">${fmt(s.n)}</td><td class="n">${fmt(s.area / 1e4, 2)}</td><td class="n">${fmt(100 * s.area / tot, 1)}%</td></tr>`).join('')}<tr><td><b>합계</b></td><td class="n"><b>${fmt(res.stats.reduce((a, s) => a + s.n, 0))}</b></td><td class="n"><b>${fmt(tot / 1e4, 2)}</b></td><td class="n">100%</td></tr></table></div>
+    h += `<div class="note" style="margin-top:10px">완료 · ${fmt(res.n)}개 폴리곤 · ${res.secs.toFixed(1)}초${res.shapeLog ? '<br><b>작업기준 적용 결과</b><br>' + res.shapeLog.map((l) => `· ${esc(l.title)} — ${esc(l.msg || '')}`).join('<br>') : ''}${res.dissolved ? '<br>· 같은 유형 맞닿은 폴리곤 합침' : ''}${res.chkN ? `<br><b style="color:var(--amber)">검토 필요(CHK) ${fmt(res.chkN)}개</b> — 지도에서 주황 테두리` : ''}</div>
+      <div class="legend"><table><tr><th>유형</th><th style="text-align:right">개수</th><th style="text-align:right">면적(ha)</th><th style="text-align:right">비율</th></tr>${rows.map((s) => `<tr><td><i style="background:${s.color}"></i>${esc(s.code)} ${esc(s.name)}</td><td class="n">${fmt(s.n)}</td><td class="n">${fmt(s.area / 1e4, 2)}</td><td class="n">${fmt(100 * s.area / tot, 1)}%</td></tr>`).join('')}<tr><td><b>합계</b></td><td class="n"><b>${fmt(res.stats.reduce((a, s) => a + s.n, 0))}</b></td><td class="n"><b>${fmt(tot / 1e4, 2)}</b></td><td class="n">100%</td></tr></table></div>
       <div class="row" style="margin-top:8px;font-size:11.5px;color:var(--muted)">결과 투명도<input type="range" min="0" max="1" step="0.05" value="${res.layer ? res.layer.getOpacity() : 0.8}" id="oOp" style="flex:1"></div>
-      <label class="f">성과품 내려받기</label>
-      <div class="dl">${[['shp', 'SHP', 'ZIP 묶음'], ['jpg', 'JPG', '도면 이미지'], ['pdf', 'PDF', '도면+통계'], ['xlsx', 'Excel', '통계·속성표'], ['geojson', 'GeoJSON', 'WGS84'], ['csv', 'CSV', '속성표']].map(([k, a, b]) => `<button class="btn" data-dl="${k}"><b>${a}</b><small>${b}</small></button>`).join('')}</div>
+      <label class="f">성과품 내려받기 ${res.geoms ? '<span style="font-weight:400">— 작업기준으로 고친 경계</span>' : ''}</label>
+      <div class="dl">${[['shp', 'SHP', '고친 경계 ZIP'], ['jpg', 'JPG', '도면 이미지'], ['pdf', 'PDF', '도면+통계'], ['xlsx', 'Excel', '통계·속성·기준'], ['geojson', 'GeoJSON', 'WGS84'], ['csv', 'CSV', '속성표']].map(([k, a, b]) => `<button class="btn" data-dl="${k}"><b>${a}</b><small>${b}</small></button>`).join('')}</div>
       <label class="f">SHP 좌표계</label><select class="sel" id="oCrs">${WORK_CRS_LIST.concat(['EPSG:4326']).map((c) => `<option ${c === (o.outCrs || S.crs) ? 'selected' : ''}>${c}</option>`).join('')}</select>`;
-  } else h += `<div class="note">왼쪽 탭에 기초자료를 올리고 “결과 도출”을 누르면 기준 경계의 폴리곤마다 다른 자료를 면적 비율로 겹쳐 보고, 규칙 표의 위에서부터 처음 맞는 유형으로 판정함.</div>`;
+  } else h += `<div class="note">왼쪽 탭에 기초자료를 올리고 위에서 최종 성과품을 고른 뒤 “결과 도출”을 누르면, ① 작업기준대로 기준 경계를 고치고 ② 폴리곤마다 다른 자료를 겹쳐 본 다음 ③ 판정 규칙의 위에서부터 처음 맞는 유형으로 정함.</div>`;
   if (!o.builtin) h += `<div class="row" style="margin-top:10px"><button class="btn" id="oDel" style="color:var(--red)">이 지도 종류 삭제</button></div>`;
   h += '</div>';
   const R = $('#rpanel'); R.innerHTML = h;
-  $$('.oc', R).forEach((d) => d.onclick = () => { S.outId = d.dataset.o; LS.set('gb2.out', S.outId); showResultLayer(); renderOutputs(); renderStepper(); });
+  $$('.pk', R).forEach((d) => d.onclick = () => { S.outId = d.dataset.o; LS.set('gb2.out', S.outId); showResultLayer(); renderOutputs(); renderStepper(); });
   $('#addOut', R).onclick = addOutputDialog;
   const sb = $('#oBase', R); sb.onchange = () => { o.base = sb.value; saveOutputs(); renderStepper(); };
+  $$('[data-ct]', R).forEach((cb) => cb.onchange = () => { const c = crit.find((x) => x.id === cb.dataset.ct); if (c) { c.on = cb.checked; saveOutputs(); renderOutputs(); renderStepper(); } });
+  $('#oCrit', R).onclick = () => critDialog(o);
+  $('#oDis', R).onchange = (e) => { o.dissolve = e.target.checked; saveOutputs(); renderOutputs(); renderStepper(); };
   $('#oClip', R).onchange = (e) => { o.clip = e.target.value; saveOutputs(); renderOutputs(); renderStepper(); };
   $('#oSamp', R).onchange = (e) => { o.samples = +e.target.value; saveOutputs(); renderOutputs(); renderStepper(); };
   $$('.need span[data-cat]', R).forEach((s) => s.onclick = () => { S.cat = s.dataset.cat; renderRail(); renderPanel(); });
@@ -1405,9 +1805,137 @@ function renderOutputs() {
   $$('[data-dl]', R).forEach((b) => b.onclick = () => doExport(o, b.dataset.dl, b));
   const del = $('#oDel', R); if (del) del.onclick = () => { if (!confirmDel(del)) return; dropResult(o); S.outputs = S.outputs.filter((x) => x !== o); S.outId = S.outputs[0].id; saveOutputs(); renderAll(); };
 }
-function ruleColor(o, ri, code) { const r = o.rules[ri]; if (!r) return '#e6e6e6'; return r.color === 'auto' || !r.color ? autoColor(code) : r.color; }
+
+// ---------- 경계 작업기준 ----------
+const critSeq = () => 'c' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
+const CRIT_NEW = {
+  cluster: () => ({ layerCat: 'etc', layer: '', filt: '', minN: 3, dist: 15, buf: 3, allow: '', minArea: 0, code: '', name: '', chk: true }),
+  replace: () => ({ layerCat: 'lc', layer: '', filt: '', minWidth: 0, minArea: 0, code: '', name: '', chk: false }),
+  absorb: () => ({ tgt: '', maxWidth: 5, maxArea: 0, nbr: '', surround: 50, chk: true }),
+  minarea: () => ({ maxArea: 100 }),
+  memo: () => ({})
+};
+function critParamsHTML(c) {
+  const p = c.p || (c.p = CRIT_NEW[c.op]()), F = (k, label, w, ph, type) => `<label>${label}<input class="inp ${type === 'n' ? 'mono' : ''}" data-p="${k}" value="${esc(p[k] == null ? '' : p[k])}" ${ph ? `placeholder="${esc(ph)}"` : ''} style="width:${w || 90}px"></label>`;
+  const CK = (k, label) => `<label class="cbl" style="margin:0"><input type="checkbox" data-p="${k}" ${p[k] ? 'checked' : ''}> ${label}</label>`;
+  const layerSel = (geom) => { const ls = S.layers.filter((l) => l.kind === 'vector' && l.geom === geom); return `<label>${geom === 'point' ? '점 자료' : '따를 자료'}<select class="sel" data-p="layer" style="width:230px"><option value="">자동 — “${esc(CAT[p.layerCat || (geom === 'point' ? 'etc' : 'lc')].name)}” 탭의 첫 ${geom === 'point' ? '점' : '면'} 자료</option>${ls.map((l) => `<option value="${l.id}" ${l.id === p.layer ? 'selected' : ''}>${esc(CAT[l.cat].name)} · ${esc(l.name)} (판정 필드 ${esc(l.field)})</option>`).join('')}</select></label>`; };
+  if (c.op === 'cluster') return layerSel('point') + F('filt', '값에 포함된 글자', 90, '예: 묘') + F('minN', '최소 개수', 50, '', 'n') + F('dist', '묶음 거리(m)', 60, '', 'n') + F('buf', '경계 여유(m)', 60, '', 'n') + F('allow', '허용 대상 값 앞자리', 100, '예: 3,4,6') + F('minArea', '최소 면적(㎡)', 70, '', 'n') + F('code', '적용 유형 코드', 70, '예: F22') + F('name', '유형 명칭', 90, '예: 묘지') + CK('chk', '검토 필요(영상 확인) 표시');
+  if (c.op === 'replace') return layerSel('poly') + F('filt', '값 앞자리 조건', 90, '예: 154') + F('minWidth', '최소 평균 폭(m)', 60, '', 'n') + F('minArea', '최소 면적(㎡)', 70, '', 'n') + F('code', '적용 유형 코드', 70, '비우면 규칙 판정') + F('name', '유형 명칭', 90, '') + CK('chk', '검토 필요 표시');
+  if (c.op === 'absorb') return F('tgt', '대상 값 앞자리', 90, '예: 154') + F('maxWidth', '평균 폭 미만(m)', 60, '', 'n') + F('maxArea', '또는 면적 미만(㎡)', 70, '', 'n') + F('nbr', '합칠 이웃 값 앞자리', 90, '예: 3') + F('surround', '이웃이 둘러싼 비율 ≥ %', 60, '', 'n') + CK('chk', '합친 폴리곤에 검토 필요 표시');
+  if (c.op === 'minarea') return F('maxArea', '이 면적 미만 조각(㎡)', 80, '', 'n');
+  return '<span style="color:var(--dim)">자동 처리 없이 성과품의 작업기준 목록에 기록됨</span>';
+}
+function critDialog(o) {
+  let rows = JSON.parse(JSON.stringify(o.criteria || []));
+  const base = layerById(o.base || defaultBase(o));
+  const draw = (b) => {
+    $('#crl', b).innerHTML = rows.length ? rows.map((c, i) => `<div class="cc ${c.on ? '' : 'off'}" data-i="${i}">
+      <div class="row"><input type="checkbox" data-k="on" ${c.on ? 'checked' : ''} title="사용"><span class="mono" style="color:var(--dim)">${i + 1}</span>
+        <input class="inp" data-k="title" value="${esc(c.title || '')}" placeholder="기준 이름 (예: 묘지 경계)" style="flex:1;font-weight:600">
+        <select class="sel" data-k="op" style="width:230px">${Object.entries(CRIT_OPS).map(([k, v]) => `<option value="${k}" ${k === c.op ? 'selected' : ''}>${esc(v.name)}</option>`).join('')}</select>
+        <button class="ib" data-mv="-1" title="위로">↑</button><button class="ib" data-mv="1" title="아래로">↓</button><button class="ib" data-del title="삭제">✕</button></div>
+      <textarea class="inp" data-k="text" rows="2" placeholder="작업기준 내용을 그대로 적음 (예: 묘지 포인트가 3개 모여 있고 정사영상에서 노출된 땅처럼 보일 때 묘지 경계를 그림)">${esc(c.text || '')}</textarea>
+      <div class="cp">${critParamsHTML(c)}</div>
+      <div class="hint">${esc((CRIT_OPS[c.op] || {}).hint || '')}</div></div>`).join('') : '<div class="empty">작업기준이 없음 — 아래 “+ 기준 추가”</div>';
+    $$('.cc', b).forEach((d) => {
+      const i = +d.dataset.i, c = rows[i];
+      $$('[data-k]', d).forEach((el) => {
+        const k = el.dataset.k;
+        if (k === 'on') el.onchange = () => { c.on = el.checked; d.classList.toggle('off', !c.on); };
+        else if (k === 'op') el.onchange = () => { c.op = el.value; c.p = CRIT_NEW[c.op](); draw(b); };
+        else el.oninput = () => { c[k] = el.value; };
+      });
+      $$('[data-p]', d).forEach((el) => {
+        const k = el.dataset.p;
+        el.oninput = el.onchange = () => { c.p[k] = el.type === 'checkbox' ? el.checked : el.value; };
+      });
+      $$('[data-mv]', d).forEach((bt) => bt.onclick = () => { const j = i + +bt.dataset.mv; if (j < 0 || j >= rows.length) return; [rows[i], rows[j]] = [rows[j], rows[i]]; draw(b); });
+      $('[data-del]', d).onclick = () => { rows.splice(i, 1); draw(b); };
+    });
+  };
+  modal(`<h3>경계 작업기준 — ${esc(o.name)}</h3>
+    <div class="vars">용역마다 다른 비오톱 경계 작성 기준을 적고, 자동으로 처리할 방식과 수치를 정함. 위에서부터 차례로 기준 경계(${base ? `<b>${esc(CAT[base.cat].name)} · ${esc(base.name)}</b>, 판정 필드 <code>${esc(base.field)}</code>` : '미선택'})에 적용됨.<br>
+      <b>값 앞자리</b>는 기준 경계의 판정 필드 값(예: 토지피복 L3_CODE <code>154</code>=도로, <code>3</code>=산림, <code>4</code>=초지, <code>6</code>=나지)이나 유형 코드의 앞부분. 여러 개는 쉼표로 구분. <b>평균 폭</b>은 2×면적÷둘레로 잰 값이라 길쭉한 도로·하천에 잘 맞음.<br>
+      영상을 눈으로 보고 판단하는 부분은 자동으로 할 수 없으므로 “검토 필요(CHK)” 표시를 남겨 성과품에서 따로 골라 볼 수 있게 함.</div>
+    <div id="crl" style="max-height:56vh;overflow:auto"></div>
+    <div class="row" style="margin-top:10px;flex-wrap:wrap"><select class="sel" id="cAddOp">${Object.entries(CRIT_OPS).map(([k, v]) => `<option value="${k}">${esc(v.name)}</option>`).join('')}</select><button class="btn" id="cAdd">+ 기준 추가</button><button class="btn" id="cExp">기준 세트 파일로 저장</button><button class="btn" id="cImp">기준 세트 불러오기</button>${CRIT_DEFAULTS[o.id] ? '<button class="btn" id="cReset">기본 예시로 되돌리기</button>' : ''}<span style="flex:1"></span><button class="btn" onclick="closeModal()">취소</button><button class="btn pri" id="cSave">저장</button></div>`, (b) => {
+    b.style.width = 'min(1060px,94vw)';
+    draw(b);
+    $('#cAdd', b).onclick = () => { const op = $('#cAddOp', b).value; rows.push({ id: critSeq(), on: true, op, title: '', text: '', p: CRIT_NEW[op]() }); draw(b); const l = $('#crl', b); l.scrollTop = l.scrollHeight; };
+    $('#cExp', b).onclick = () => saveBlob(new Blob([JSON.stringify({ type: 'gb-criteria', map: o.name, saved: today(), criteria: rows }, null, 2)], { type: 'application/json' }), `${o.short || o.name}_작업기준.json`);
+    $('#cImp', b).onclick = () => { const i = document.createElement('input'); i.type = 'file'; i.accept = '.json'; i.onchange = async () => { try { const j = JSON.parse(await i.files[0].text()); const arr = Array.isArray(j) ? j : j.criteria; if (!Array.isArray(arr)) throw new Error('작업기준 목록이 없음'); rows = arr.map((c) => ({ id: c.id || critSeq(), on: c.on !== false, op: CRIT_OPS[c.op] ? c.op : 'memo', title: c.title || '', text: c.text || '', p: { ...CRIT_NEW[CRIT_OPS[c.op] ? c.op : 'memo'](), ...(c.p || {}) } })); draw(b); toast(rows.length + '개 기준 불러옴 — 저장을 눌러야 적용됨'); } catch (e) { toast('불러오기 실패: ' + e.message, 'err'); } }; i.click(); };
+    const rs = $('#cReset', b); if (rs) rs.onclick = () => { rows = JSON.parse(JSON.stringify(CRIT_DEFAULTS[o.id])); draw(b); };
+    $('#cSave', b).onclick = () => { o.criteria = rows; saveOutputs(); closeModal(); renderAll(); toast('작업기준 저장됨' + (S.results[o.id] ? ' — “결과 다시 도출”을 눌러 반영' : '')); };
+  });
+}
+function critPayload(o) {
+  const rulesAll = o.rules.map((r) => ({ ...r }));
+  const list = (o.criteria || []).filter((c) => c.on && CRIT_OPS[c.op] && c.op !== 'memo').map((c) => {
+    const p = c.p || {}, x = { ...p, id: c.id, op: c.op, title: c.title || CRIT_OPS[c.op].name };
+    ['minN', 'dist', 'buf', 'minArea', 'minWidth', 'maxWidth', 'maxArea', 'surround'].forEach((k) => { if (x[k] != null) x[k] = +x[k] || 0; });
+    if (c.op === 'cluster' || c.op === 'replace') {
+      const geom = c.op === 'cluster' ? 'point' : 'poly', cat = p.layerCat || (geom === 'point' ? 'etc' : 'lc');
+      let L = p.layer && layerById(p.layer);
+      if (!L || L.geom !== geom) L = S.layers.find((l) => l.kind === 'vector' && l.geom === geom && l.cat === cat) || (geom === 'point' ? S.layers.find((l) => l.kind === 'vector' && l.geom === 'point') : null);
+      x.layer = L ? L.id : ''; x.field = L ? L.field : ''; x.layerName = L ? L.name : CAT[cat].name;
+      if (String(p.code || '').trim()) {
+        const cd = String(p.code).trim(); let ri = rulesAll.findIndex((r) => r.code === cd);
+        if (ri < 0) { rulesAll.push({ code: cd, name: p.name || cd, color: autoColor(cd), when: 'false', crit: true }); ri = rulesAll.length - 1; }
+        x.fc = { ri, code: cd, name: String(p.name || '').trim() || rulesAll[ri].name };
+      }
+    }
+    return x;
+  });
+  return { list, rulesAll };
+}
+const rulesOf = (o) => (S.results[o.id] && S.results[o.id].rulesAll) || o.rules;
+function ruleColor(o, ri, code, rules) { const r = (rules || rulesOf(o))[ri]; if (!r) return '#e6e6e6'; return r.color === 'auto' || !r.color ? autoColor(code) : r.color; }
 function sortedStats(o, res) {
   return res.stats.map((s) => ({ ...s, color: s.rule >= 0 ? ruleColor(o, s.rule, s.code) : '#e6e6e6' })).sort((a, b) => (a.rule < 0) - (b.rule < 0) || a.rule - b.rule || String(a.code).localeCompare(String(b.code), 'ko', { numeric: true }));
+}
+
+
+// ---------- 사이트 안내(배경 설명) ----------
+function critText(o) {
+  const r = S.results[o.id], cu = (r && r.critUsed) || o.criteria || [];
+  return `${o.name} — 경계 작업기준\r\n작성일 ${today()} · 좌표계 ${S.crs}${r ? ' · 기준 경계 ' + r.baseName : ''}\r\n\r\n` + cu.map((c, i) => {
+    const lg = r && (r.shapeLog || []).find((l) => l.id === c.id);
+    return `${i + 1}. [${c.on ? '사용' : '안 씀'}] ${c.title}\r\n   내용: ${c.text || ''}\r\n   방식: ${(CRIT_OPS[c.op] || {}).name || c.op}  설정: ${JSON.stringify(c.p || {})}${lg ? '\r\n   결과: ' + lg.msg : ''}`;
+  }).join('\r\n\r\n') + (o.dissolve ? '\r\n\r\n· 판정 뒤 같은 유형끼리 맞닿은 폴리곤 합침' : '') + '\r\n\r\n※ CHK 필드에 “영상 확인”이 적힌 폴리곤은 최신 정사영상·현장조사표로 경계를 확인할 것.\r\n';
+}
+const LAW = {
+  guide: 'https://www.law.go.kr/%ED%96%89%EC%A0%95%EA%B7%9C%EC%B9%99/%EB%8F%84%EC%8B%9C%EC%83%9D%ED%83%9C%ED%98%84%ED%99%A9%EC%A7%80%EB%8F%84%EC%9D%98%EC%9E%91%EC%84%B1%EB%B0%A9%EB%B2%95%EC%97%90%EA%B4%80%ED%95%9C%EC%A7%80%EC%B9%A8',
+  guide2025: 'https://www.law.go.kr/LSW/admRulLsInfoP.do?admRulSeq=2100000267096',
+  act: 'https://www.law.go.kr/%EB%B2%95%EB%A0%B9/%EC%9E%90%EC%97%B0%ED%99%98%EA%B2%BD%EB%B3%B4%EC%A0%84%EB%B2%95/%EC%A0%9C34%EC%A1%B0%EC%9D%982',
+  rule: 'https://www.law.go.kr/%EB%B2%95%EB%A0%B9/%EC%9E%90%EC%97%B0%ED%99%98%EA%B2%BD%EB%B3%B4%EC%A0%84%EB%B2%95%EC%8B%9C%ED%96%89%EA%B7%9C%EC%B9%99/%EC%A0%9C17%EC%A1%B0',
+  notice: 'https://opinion.lawmaking.go.kr/gcom/ogLmPp/89232',
+  gg: 'https://climate.gg.go.kr/ces/cesInfo/main',
+  egis: 'https://egis.me.go.kr'
+};
+function guideHTML() {
+  const A = (u, t) => `<a href="${u}" target="_blank" rel="noopener">${t} ↗</a>`;
+  return `<div class="gd">
+  <div class="ph"><h3>사이트 안내</h3><p>비오톱과 도시생태현황지도의 개념, 근거 법령·최신 지침, 이 사이트의 작업 순서를 정리함.</p></div>
+  <section><h4>비오톱(Biotope)이란</h4>
+    <p>그리스어 bios(생명)와 topos(장소)를 합친 말로, 생물이 모여 사는 공간 단위를 뜻함.</p>
+    <blockquote>인간의 토지이용에 직간접적인 영향을 받아 특징지어진 지표면의 공간적 경계로서 생물군집이 서식하고 있거나 서식할 수 있는 잠재력을 가지고 있는 공간단위<cite>— 「도시생태현황지도의 작성방법에 관한 지침」(환경부 고시)의 정의</cite></blockquote>
+    <p>도시생태현황지도에서는 폴리곤 하나가 비오톱 하나이고, 비오톱마다 유형(대·중·소분류)과 속성을 조사해 평가 등급을 매김. 그래서 <b>경계를 어디에 긋느냐(작업기준)</b>가 유형·면적·등급을 모두 좌우함.</p></section>
+  <section><h4>도시생태현황지도</h4>
+    <p>「자연환경보전법」 제34조의2(도시생태현황지도의 작성·활용)에 따라 지방자치단체가 관할 구역의 자연환경을 조사해 만드는 지도형 공간정보임. 작성방법은 같은 법 시행규칙 제17조와 「도시생태현황지도의 작성방법에 관한 지침」을 따름.</p>
+    <ul><li>지침에 따라 5년마다 정기 갱신함.</li><li>모든 비오톱(폴리곤)에 비오톱 속성자료 조사표를 작성해야 함 — 이 사이트의 자동 경계는 초안이며, 현장조사표와 영상 판독으로 확정해야 함.</li><li>5개 등급 평가를 기본으로 하고, 필요하면 6개 등급 이상 평가를 추가할 수 있음.</li></ul>
+    <p class="dim">2026년 11월 현재 지침 최신본은 환경부고시 제2025-165호(2025.10.1. 시행)임. 「자연환경보전법」이 개정(2026.3.17. 공포, 2027.3.18. 시행)되어, 도시지역 비율이 10% 이하인 군을 작성 대상에서 빼는 시행규칙 개정안이 입법예고 중임(2026.11.2.~12.14.). 착수 전에 아래 링크에서 최신본을 꼭 확인할 것.</p></section>
+  <section><h4>법령·지침 바로가기</h4>
+    <div class="lk">${A(LAW.guide, '도시생태현황지도의 작성방법에 관한 지침 — 현행 최신본 (국가법령정보센터)')}${A(LAW.guide2025, '지침 환경부고시 제2025-165호 (2025.10.1. 시행) 원문·별표')}${A(LAW.act, '자연환경보전법 제34조의2 (도시생태현황지도의 작성·활용)')}${A(LAW.rule, '자연환경보전법 시행규칙 제17조 (작성방법)')}${A(LAW.notice, '자연환경보전법 시행규칙 일부개정령안 입법예고 (2026.11.2.~12.14.)')}${A(LAW.gg, '경기도 기후플랫폼 — 도시생태현황지도·비오톱 개념 안내')}${A(LAW.egis, '환경공간정보서비스(EGIS) — 토지피복지도 내려받기')}</div></section>
+  <section><h4>이 사이트로 작업하는 순서</h4>
+    <ol><li><b>왼쪽 탭에 기초자료 올리기</b> — 토지피복·임상도·건물·도로 등 SHP(ZIP), 과거지도, 현장조사 결과(묘지 점 등). 올린 자료는 이 브라우저에 보관됨.</li>
+    <li><b>오른쪽에서 최종 성과품 고르기</b> — 비오톱 유형도·현존식생도·토지이용피복도·투수불투수·우수비오톱 예상 중 하나를 버튼으로 선택. 진행률은 고른 지도에만 표시됨.</li>
+    <li><b>경계 작업기준 입력</b> — 용역 지침대로 “묘지 점 3개 이상 + 노출지면 묘지 경계”, “큰 도로는 토지피복 경계”, “산지 좁은 도로는 산림에 포함”처럼 적고 수치를 넣음. 기준 세트는 파일로 저장해 다음 용역에 다시 쓸 수 있음.</li>
+    <li><b>결과 도출</b> — 작업기준대로 경계를 자르고·끼우고·합친 뒤, 폴리곤마다 다른 자료를 겹쳐 보고 판정 규칙으로 유형을 정함.</li>
+    <li><b>검토 후 내려받기</b> — 주황 테두리(CHK) 폴리곤을 영상으로 확인하고, 고친 경계 SHP·도면 JPG/PDF·Excel(통계·속성·작업기준)을 내려받음.</li></ol></section>
+  <section><h4>작업기준으로 자동 처리할 수 있는 것과 없는 것</h4>
+    <p><b>자동</b> — 점 군집으로 새 경계 만들기, 다른 자료(토지피복 등)의 경계를 따라 잘라 끼우기, 폭·면적 조건으로 좁거나 작은 폴리곤을 이웃에 합치기, 최소 면적 정리, 같은 유형 합치기.</p>
+    <p><b>수작업</b> — “영상에서 노출된 땅처럼 보일 때”, “눈으로 보이는 곳을 딴다”처럼 영상을 보고 판단하는 부분. 이런 기준은 피복 값(초지·나지 등)과 폭 조건으로 최대한 가깝게 근사하고, 해당 폴리곤에 검토 필요(CHK) 표시를 남김.</p></section>
+  <div class="empty">안내 기준일 2026-11-18 · 법령은 국가법령정보센터 최신본이 우선함.</div></div>`;
 }
 
 // ---------- 결과 도출 ----------
@@ -1417,13 +1945,15 @@ async function runOutput(o) {
   if (o.run && o.run.state === 'run') return;
   const inputs = S.layers.filter((l) => l.kind === 'vector' && l.geom !== 'line').map((l) => ({ id: l.id, key: varKey(l), ascii: asciiKey(l), field: l.field }));
   const lookups = {}; S.layers.filter((l) => l.cat === 'lc').forEach((l) => lookups[varKey(l)] = LC_NAMES);
+  const cp = critPayload(o);
+  const missing = cp.list.filter((c) => (c.op === 'cluster' || c.op === 'replace') && !c.layer);
+  if (missing.length) toast('작업기준 “' + missing.map((c) => c.title).join('”, “') + '”에 쓸 자료가 없어 건너뜀', 'warn');
   o.run = { state: 'run', pct: 0 }; o.exported = new Set();
   renderOutputs(); renderStepper();
   const t0 = Date.now();
-  const p = wjob({ type: 'analyze', base: base.id, inputs, clip: o.clip || null, rules: o.rules.map((r) => ({ code: r.code, name: r.name, when: r.when })), samples: o.samples || 100, lookups }, (pct, text) => {
+  const p = wjob({ type: 'analyze', base: base.id, baseField: base.field, inputs, clip: o.clip || null, rules: cp.rulesAll.map((r) => ({ code: r.code, name: r.name, when: r.when })), samples: o.samples || 100, lookups, criteria: cp.list, dissolve: !!o.dissolve }, (pct, text) => {
     o.run.pct = pct; setTask(`${o.short || o.name} — ${text}`, pct);
-    const b = $('#oRun'); if (b) b.textContent = `판정 중 ${Math.round(pct)}%`;
-    const card = $(`.oc[data-o="${o.id}"]`); if (card) { card.querySelector('.bar i').style.width = progressOf(o).all + '%'; card.querySelector('.t span').textContent = progressOf(o).all + '%'; card.querySelector('.s').textContent = `판정 중 ${Math.round(pct)}%`; }
+    const b = $('#oRun'); if (b) b.textContent = `도출 중 ${Math.round(pct)}%`;
     renderStepper();
   });
   o.run.job = p.job;
@@ -1432,17 +1962,21 @@ async function runOutput(o) {
     if (r.type === 'cancelled') { o.run = null; clearTask('중지함'); renderAll(); return; }
     setTask(`${o.short || o.name} — 결과 그리는 중`, 99);
     dropResult(o);
+    let geoms = null;
+    if (r.geom) { const tmp = { geom: 'poly', name: o.short || o.name }; await buildFeatures(tmp, { ...r.geom, n: r.n }); geoms = tmp.features; }
+    const geomOf = (f) => (geoms ? geoms[f] : base.features[f]);
     const feats = [];
     for (let f = 0; f < r.n; f++) {
       if (r.code[f] === -2) continue;
-      const g = base.features[f] && base.features[f].getGeometry(); if (!g) continue;
+      const g0 = geomOf(f), g = g0 && g0.getGeometry(); if (!g) continue;
       const ft = new ol.Feature(g); ft._i = f; ft._o = o.id; feats.push(ft);
     }
     const colors = new Array(r.n);
-    for (let f = 0; f < r.n; f++) if (r.code[f] >= 0) colors[f] = ruleColor(o, r.code[f], r.outCode[f]); else colors[f] = '#e6e6e6';
+    for (let f = 0; f < r.n; f++) if (r.code[f] >= 0) colors[f] = ruleColor(o, r.code[f], r.outCode[f], cp.rulesAll); else colors[f] = '#e6e6e6';
+    const chk = r.meta ? r.meta.chk : null; let chkN = 0; if (chk) for (let f = 0; f < r.n; f++) if (chk[f] && r.code[f] !== -2) chkN++;
     const cache = new Map();
-    const layer = new ol.layer.VectorImage({ source: new ol.source.Vector({ features: feats, wrapX: false }), opacity: 0.8, imageRatio: 1.3, style: (ft) => { const c = colors[ft._i]; let s = cache.get(c); if (!s) { s = new ol.style.Style({ fill: new ol.style.Fill({ color: c }), stroke: new ol.style.Stroke({ color: 'rgba(40,40,40,.55)', width: 0.6 }) }); cache.set(c, s); } return s; } });
-    S.results[o.id] = { ...r, baseId: base.id, layer, colors, at: new Date(), crs: S.crs, rulesSig: rulesSig(o), baseName: base.name, inputs: inputs.filter((i) => i.id !== base.id || true) };
+    const layer = new ol.layer.VectorImage({ source: new ol.source.Vector({ features: feats, wrapX: false }), opacity: 0.8, imageRatio: 1.3, style: (ft) => { const c = colors[ft._i], w = chk && chk[ft._i] ? 1 : 0, k = c + w; let s = cache.get(k); if (!s) { s = new ol.style.Style({ fill: new ol.style.Fill({ color: c }), stroke: new ol.style.Stroke(w ? { color: '#ff8a00', width: 2.2 } : { color: 'rgba(40,40,40,.55)', width: 0.6 }) }); cache.set(k, s); } return s; } });
+    S.results[o.id] = { ...r, baseId: base.id, layer, colors, geoms, chkN, rulesAll: cp.rulesAll, critUsed: JSON.parse(JSON.stringify(o.criteria || [])), at: new Date(), crs: S.crs, rulesSig: rulesSig(o), baseName: base.name, inputs };
     o.run = null;
     showResultLayer();
     clearTask(`${o.short || o.name} 도출 완료 (${((Date.now() - t0) / 1000).toFixed(1)}초)`);
@@ -1461,7 +1995,7 @@ function compileCheck(expr) { try { new Function('ctx', 'with (ctx) { return (' 
 function rulesDialog(o) {
   let rows = JSON.parse(JSON.stringify(o.rules));
   const varsHelp = () => {
-    const keys = CATS.filter((c) => !c.raster).map((c) => `<code>${c.key}</code>${hasKey(c.key) ? '' : '<span style="color:var(--dim)">(없음)</span>'}`).join(' ');
+    const keys = DATA_CATS.filter((c) => !c.raster).map((c) => `<code>${c.key}</code>${hasKey(c.key) ? '' : '<span style="color:var(--dim)">(없음)</span>'}`).join(' ');
     return `<b>쓸 수 있는 이름</b> — 탭별 자료: ${keys}<br>
       각 이름 뒤에 붙여 쓰는 값: <code>피복</code> 폴리곤 안에서 가장 넓은 값 · <code>피복_비율</code> 그 값의 면적 비율(0~1) · <code>피복_면적률</code> 자료가 덮는 비율 · <code>피복_값</code> 값별 비율 · 점 자료는 <code>생물_수</code> 개수 · <code>면적</code>(㎡) · <code>피복명</code> 토지피복 코드 명칭<br>
       함수: <code>시작(피복,'31','32')</code> 앞자리 일치 · <code>끝(지목,'대')</code> 끝 글자 · <code>포함(임상,'활엽')</code> 글자 포함 · <code>중(용도,'자연녹지지역')</code> 정확히 일치 · <code>시작비율(피복_값,'3')</code> 해당 값들의 비율 합 · 연산자 <code>&amp;&amp;</code>(그리고) <code>||</code>(또는) <code>!</code>(아님) <code>&gt;=</code><br>
@@ -1518,8 +2052,10 @@ function resultRows(o) {
   for (let f = 0; f < r.n; f++) {
     if (r.code[f] === -2) continue;
     const row = { ID: f + 1, CODE: r.code[f] >= 0 ? r.outCode[f] : '', NAME: r.code[f] >= 0 ? r.outName[f] : '미분류', AREA_M2: +r.area[f].toFixed(2), AREA_HA: +(r.area[f] / 1e4).toFixed(4) };
+    if (r.meta) { row.SRC_ID = r.meta.src[f] >= 0 ? r.meta.src[f] + 1 : 0; row.CRIT = r.meta.crit[f] || ''; row.CHK = r.meta.chk[f] || ''; }
     for (const s of r.summary) { if (s.geom === 'point') { row[s.ascii + '_N'] = s.r[f]; row[s.ascii + '_V'] = s.v[f] == null ? '' : s.v[f]; } else { row[s.ascii + '_V'] = s.v[f] == null ? '' : s.v[f]; row[s.ascii + '_R'] = +(s.r[f] || 0).toFixed(3); } }
-    rows.push({ f, row, geom: B && B.features[f] ? B.features[f].getGeometry() : null });
+    const gf = r.geoms ? r.geoms[f] : B && B.features[f];
+    rows.push({ f, row, geom: gf ? gf.getGeometry() : null });
   }
   return rows;
 }
@@ -1543,12 +2079,13 @@ async function doExport(o, kind, btn) {
         const keys = Object.keys(rows[0] ? rows[0].row : { ID: 0 });
         const enc = new TextEncoder(), wid = {};
         for (const x of rows) for (const k of keys) { const v = x.row[k]; if (typeof v === 'string') { const l = enc.encode(v).length; if (!(wid[k] >= l)) wid[k] = l; } }
-        const fields = keys.map((k) => k === 'ID' ? { name: k, type: 'N', length: 10, decimals: 0 } : /AREA|_R$|_N$/.test(k) ? { name: k, type: 'F', length: /_R$/.test(k) ? 8 : /_N$/.test(k) ? 8 : 16, decimals: /_R$/.test(k) ? 3 : /_N$/.test(k) ? 0 : /HA/.test(k) ? 4 : 2 } : { name: k, type: 'C', length: Math.min(254, Math.max(4, wid[k] || 1)) });
+        const fields = keys.map((k) => k === 'ID' || k === 'SRC_ID' ? { name: k, type: 'N', length: 10, decimals: 0 } : /AREA|_R$|_N$/.test(k) ? { name: k, type: 'F', length: /_R$/.test(k) ? 8 : /_N$/.test(k) ? 8 : 16, decimals: /_R$/.test(k) ? 3 : /_N$/.test(k) ? 0 : /HA/.test(k) ? 4 : 2 } : { name: k, type: 'C', length: Math.min(254, Math.max(4, wid[k] || 1)) });
         setTask('SHP 쓰는 중', 50);
         const w = ShpIO.writeShapefile(feats, fields, outCrs), z = new JSZip(), nm = fileBase(o);
         z.file(nm + '.shp', w.shp); z.file(nm + '.shx', w.shx); z.file(nm + '.dbf', w.dbf); z.file(nm + '.prj', w.prj); z.file(nm + '.cpg', w.cpg);
         z.file(nm + '_범례.csv', '﻿코드,명칭,색상,개수,면적_ha,비율\n' + legendRows(o).map((s) => [s.code, s.name, s.color, s.n, (s.area / 1e4).toFixed(4), s.pct.toFixed(2)].map((v) => '"' + String(v).replace(/"/g, '""') + '"').join(',')).join('\n'));
         z.file(nm + '.qml', qml(o));
+        z.file(nm + '_작업기준.txt', '\ufeff' + critText(o));
         saveBlob(await z.generateAsync({ type: 'blob', compression: 'DEFLATE' }, (m) => setTask('ZIP 압축', 60 + m.percent * 0.4)), nm + '_SHP.zip');
       } else if (kind === 'geojson') {
         const tr = proj4(S.crs, 'EPSG:4326').forward;
@@ -1569,6 +2106,8 @@ async function doExport(o, kind, btn) {
         const ws2 = XLSX.utils.aoa_to_sheet([keys].concat(rows.slice(0, 1048000).map((x) => keys.map((k) => x.row[k]))));
         XLSX.utils.book_append_sheet(wb, ws2, '폴리곤 속성');
         XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([['순서', '코드', '명칭', '색상', '조건식']].concat(o.rules.map((x, i) => [i + 1, x.code, x.name, x.color, x.when]))), '판정 규칙');
+        const cu = r.critUsed || o.criteria || [];
+        XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([['순서', '사용', '기준 이름', '작업기준 내용', '자동 처리 방식', '설정값', '적용 결과']].concat(cu.map((c, i) => { const lg = (r.shapeLog || []).find((l) => l.id === c.id); return [i + 1, c.on ? '사용' : '안 씀', c.title, c.text, (CRIT_OPS[c.op] || {}).name || c.op, JSON.stringify(c.p || {}), lg ? lg.msg : (c.on && c.op === 'memo' ? '수작업 기준(기록)' : '')]; }))), '작업기준');
         XLSX.writeFile(wb, fileBase(o) + '.xlsx');
       }
     } else {
@@ -1663,7 +2202,7 @@ map.on('singleclick', (e) => {
     if (html) return true;
     if (ft._o && res) {
       const f = ft._i;
-      html = `<h4><i style="display:inline-block;width:11px;height:11px;border-radius:3px;background:${res.colors[f]};margin-right:5px"></i>${esc(res.code[f] >= 0 ? res.outCode[f] + ' ' + res.outName[f] : '미분류')}</h4><table><tr><td>면적</td><td>${fmt(res.area[f], 1)} ㎡ (${fmt(res.area[f] / 1e4, 3)} ha)</td></tr>${res.summary.map((s) => `<tr><td>${esc(s.key)}</td><td>${s.geom === 'point' ? `${s.r[f]}개 ${esc(s.v[f] || '')}` : `${esc(s.v[f] == null ? '—' : s.v[f])} <span style="color:var(--dim)">${s.v[f] == null ? '' : Math.round(100 * s.r[f]) + '%'}</span>`}</td></tr>`).join('')}</table>`;
+      html = `<h4><i style="display:inline-block;width:11px;height:11px;border-radius:3px;background:${res.colors[f]};margin-right:5px"></i>${esc(res.code[f] >= 0 ? res.outCode[f] + ' ' + res.outName[f] : '미분류')}</h4><table><tr><td>면적</td><td>${fmt(res.area[f], 1)} ㎡ (${fmt(res.area[f] / 1e4, 3)} ha)</td></tr>${(res.meta && (res.meta.crit[f] || res.meta.chk[f]) ? `<tr><td>작업기준</td><td>${esc(res.meta.crit[f] || '')}</td></tr>${res.meta.chk[f] ? `<tr><td>검토</td><td style="color:#c76a00">${esc(res.meta.chk[f])}</td></tr>` : ''}` : '') + res.summary.map((s) => `<tr><td>${esc(s.key)}</td><td>${s.geom === 'point' ? `${s.r[f]}개 ${esc(s.v[f] || '')}` : `${esc(s.v[f] == null ? '—' : s.v[f])} <span style="color:var(--dim)">${s.v[f] == null ? '' : Math.round(100 * s.r[f]) + '%'}</span>`}</td></tr>`).join('')}</table>`;
       return true;
     }
     if (ft._L) {
@@ -1728,7 +2267,7 @@ $('#modeChip').onclick = () => {
 function chipState() { const ok = !!vwKey(); const c = $('#modeChip'); c.className = 'chip ' + (ok ? 'ok' : 'warn'); c.lastElementChild.textContent = ok ? '브이월드 연결됨' : '키 설정'; }
 $$('.nav button').forEach((b) => b.onclick = () => {
   const n = b.dataset.nav;
-  if (n === 'help') helpDialog();
+  if (n === 'help') { S.cat = 'info'; if ($('#app').classList.contains('lp-off')) togglePanel(); renderRail(); renderPanel(); }
   if (n === 'data') { if ($('#app').classList.contains('lp-off')) togglePanel(); $('#lpanel').scrollTop = 0; }
   if (n === 'out') $('#rpanel').scrollTop = 0;
   if (n === 'stats') statsDialog();
@@ -2215,7 +2754,7 @@ body.gbe-picking, body.gbe-picking *{cursor:crosshair !important}
   const SUGGEST = ['상단바 배경을 짙은 남색으로 바꿔줘', '“불러오기” 단계 이름을 “데이터 입력”으로 바꿔줘', '첫 화면에 “11월 점검 안내” 공지 배너를 띄워줘', '오른쪽 패널을 조금 더 넓게 해줘'];
 
   const SYS_STATIC = `당신은 GeoBound 웹사이트 안에 내장된 “사이트 편집 도우미”임. 대화 상대는 이 사이트의 관리자이며, 화면·문구·디자인·기능을 바꿔 달라고 요청함.
-사이트: 도시생태현황지도 제작 — 왼쪽 20개 주제 탭(#rail·#lpanel)에 기초자료 SHP를 올리고, 오른쪽(#rpanel)에서 결과 지도(비오톱 유형도·현존식생도·토지이용피복도·투수불투수·우수비오톱 예상지역 등)를 규칙으로 도출해 SHP·JPG·PDF·Excel로 내보내는 OpenLayers 기반 단일 index.html. 상단 #stepper는 단계별 진행 막대. 경계 편집 도구는 없음(의도된 설계). 편집기 패널(#gbe)은 수정 대상이 아님.
+사이트: 도시생태현황지도 제작 — 왼쪽 22개 주제 탭(#rail·#lpanel, 맨 위는 사이트 안내)에 기초자료 SHP를 올리고, 오른쪽(#rpanel)에서 최종 성과품 하나를 버튼으로 골라 경계 작업기준(o.criteria)으로 경계를 고친 뒤 규칙으로 유형을 도출해 SHP·JPG·PDF·Excel로 내보내는 OpenLayers 기반 단일 index.html. 상단 #stepper는 단계별 진행 막대. 경계 편집 도구는 없음(의도된 설계). 편집기 패널(#gbe)은 수정 대상이 아님.
 
 수정 방식은 두 가지임.
 1) 빠른 수정(사이트 설정) — set_text(화면 글자·툴팁·숨김), set_design(색·글꼴 CSS 변수, 브라우저 탭 제목), set_css(덧붙이는 CSS), set_script(페이지가 열릴 때마다 실행되는 사용자 JS). 바로 화면에 반영되고 되돌리기 쉬움. 대부분의 요청은 이것으로 해결할 것.
@@ -2225,7 +2764,7 @@ body.gbe-picking, body.gbe-picking *{cursor:crosshair !important}
 - 추측한 선택자를 쓰지 말고 page_outline, css_lookup, get_config, source_search로 현재 상태를 먼저 확인할 것.
 - 색이 CSS 변수로 정의된 곳(--bg, --panel, --acc, --text 등)은 set_design, 직접 색이 적힌 곳(예: .top 배경 그라디언트)은 set_css로 덮어쓸 것. 기존 규칙보다 우선하도록 같은 선택자 또는 더 구체적인 선택자 사용.
 - 사용자 스크립트는 run_js로 먼저 시험 실행해 오류가 없는지 확인한 뒤 set_script로 저장할 것. set_script는 다음 페이지 로드부터 실행되므로 지금 화면에도 보이게 하려면 run_js로도 실행. 두 번 실행돼도 중복되지 않게(요소 id로 존재 여부 확인 등) 작성.
-- 앱 전역 이름: S(상태: layers·outputs·results·cat·outId), CATS(20개 탭 정의), OUT_DEFAULTS(결과 지도 기본 규칙), map·view(OpenLayers), toast(msg, kind), modal(html, onMount), closeModal(), setBasemap(id), renderAll(), runOutput(o), curOut(), $·$$ 헬퍼, esc(). 규칙은 S.outputs[i].rules 배열({code,name,color,when})이고 저장은 saveOutputs().
+- 앱 전역 이름: S(상태: layers·outputs·results·cat·outId), CATS(20개 탭 정의), OUT_DEFAULTS(결과 지도 기본 규칙), map·view(OpenLayers), toast(msg, kind), modal(html, onMount), closeModal(), setBasemap(id), renderAll(), runOutput(o), curOut(), $·$$ 헬퍼, esc(). 규칙은 S.outputs[i].rules 배열({code,name,color,when}), 경계 작업기준은 S.outputs[i].criteria 배열({on,op,title,text,p})이고 저장은 saveOutputs(). 경계 연산은 워커의 JSTS로 처리함.
 - 모든 변경은 아직 게시되지 않은 상태임. 직접 게시하지 말고, 끝나면 바꾼 내용을 2~4줄로 요약한 뒤 “마음에 들면 아래 ‘임시 저장’(나만 보기) 또는 ‘사이트에 게시’(모두에게 반영)”라고 안내할 것. 마음에 안 들면 이번 요청 아래의 ‘이 변경 취소’로 되돌릴 수 있음.
 - 범위가 크거나 기존 기능을 없애는 변경은 짧게 계획을 말하고 진행할 것. 요청이 모호하면 한 가지만 물어볼 것.
 - API 키·토큰 같은 비밀값을 사이트 설정이나 스크립트에 넣지 말 것(게시하면 누구나 볼 수 있음).
