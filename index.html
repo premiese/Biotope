@@ -266,6 +266,16 @@ button,input,select,textarea{font:inherit;color:inherit}
 .ol-zoom{left:auto!important;right:14px;top:14px!important}
 .ol-scale-line{left:14px;bottom:12px}
 .ol-attribution{font-size:10px}
+#cmd{position:absolute;left:50%;bottom:28px;transform:translateX(-50%);width:min(860px,calc(100% - 110px));z-index:5;display:flex;flex-direction:column;gap:6px;pointer-events:none}
+#cmd>*{pointer-events:auto}
+#cmd .cmdrow{display:flex;gap:6px;align-items:flex-end;background:rgba(255,255,255,.97);border:1.5px solid var(--acc,#1f7a4d);border-radius:12px;padding:6px;box-shadow:0 8px 24px rgba(0,0,0,.22)}
+#cmd .cmdlab{font-weight:700;font-size:12px;color:#fff;background:var(--acc,#1f7a4d);border-radius:7px;padding:7px 9px;align-self:stretch;display:flex;align-items:center}
+#cmdIn{flex:1;resize:none;border:0;outline:0;font:inherit;font-size:14px;line-height:1.45;padding:6px 4px;min-height:32px;max-height:120px;background:transparent}
+#cmd .btn{padding:6px 11px}
+#cmdLog{max-height:34vh;overflow:auto;background:rgba(18,28,23,.9);color:#eef;border-radius:10px;padding:8px 12px;font-size:12.5px;line-height:1.55;box-shadow:0 6px 18px rgba(0,0,0,.25)}
+#cmdLog .cl{padding:5px 0;border-bottom:1px solid rgba(255,255,255,.1)}#cmdLog .cl:last-child{border-bottom:0}
+#cmdLog .cu{color:#9fe3bd;font-weight:600}#cmdLog .ca{padding-left:12px}#cmdLog .ca.w{color:#ffcf7a}#cmdLog .ca.ok{color:#bff5d3}#cmdLog a{color:#8fd3ff}
+#cmdLog .cx{display:flex;flex-wrap:wrap;gap:5px;margin:6px 0}#cmdLog .cx span{background:rgba(255,255,255,.12);border-radius:6px;padding:3px 8px;cursor:pointer}#cmdLog .cx span:hover{background:rgba(255,255,255,.25)}
 #attr{position:absolute;right:10px;bottom:8px;z-index:2;font-size:10.5px;background:rgba(255,255,255,.85);padding:2px 8px;border-radius:5px;color:var(--muted)}
 .pop{position:absolute;background:#fff;border-radius:10px;box-shadow:0 6px 20px rgba(0,0,0,.2);padding:10px 12px;min-width:220px;max-width:340px;font-size:12px;transform:translate(-50%,calc(-100% - 14px))}
 .pop table{border-collapse:collapse;width:100%}.pop td{padding:2px 4px;border-bottom:1px solid var(--line);vertical-align:top}.pop td:first-child{color:var(--muted);white-space:nowrap}
@@ -360,7 +370,7 @@ button,input,select,textarea{font:inherit;color:inherit}
 .rt .err{color:var(--red);font-size:11px}
 .vars{font-size:11.5px;color:var(--muted);line-height:1.7;background:var(--panel2);border-radius:8px;padding:8px 10px;margin-bottom:10px}
 .vars code{font-family:var(--mono);background:#fff;border:1px solid var(--line);border-radius:4px;padding:0 4px;color:var(--text)}
-#toasts{position:fixed;left:50%;bottom:44px;transform:translateX(-50%);z-index:60;display:flex;flex-direction:column;gap:6px;align-items:center}
+#toasts{position:fixed;right:18px;bottom:40px;z-index:60;display:flex;flex-direction:column;gap:6px;align-items:flex-end;max-width:420px}
 .toast{background:#22312a;color:#fff;padding:9px 16px;border-radius:9px;font-size:12.5px;box-shadow:0 6px 18px rgba(0,0,0,.25);max-width:640px}
 .toast.err{background:#a33}.toast.warn{background:#9a6510}
 #busy{position:fixed;inset:0;z-index:55;background:rgba(255,255,255,.45);display:flex;align-items:center;justify-content:center}
@@ -927,7 +937,7 @@ async function analyze(m) {
     const L = res.L, g = { coords: L.coords.slice(), ringStart: L.ringStart.slice(), featRing: L.featRing.slice(), outer: L.outer.slice() };
     msg.geom = g; tr.push(g.coords.buffer, g.ringStart.buffer, g.featRing.buffer, g.outer.buffer);
     const mt = res.meta;
-    msg.meta = mt ? { src: mt.src, crit: mt.crit, chk: mt.chk } : null;
+    msg.meta = mt ? { src: mt.src, crit: mt.crit, chk: mt.chk, mv: mt.mv || null } : null;
   }
   post(msg, tr);
 }
@@ -998,7 +1008,7 @@ async function shapeBase(B, m, crit, job, p0, p1) {
   const baseCol = m.baseField ? colOfL(B, m.baseField) : null;
   const X = { B, items: [], idx: new GIdx(B.extent, B.n), log: [] };
   for (let f = 0; f < B.n; f++) {
-    const it = { src: f, g: null, val: baseCol && baseCol[f] != null ? String(baseCol[f]).trim() : '', fc: null, crit: [], chk: [], mod: false, dead: false };
+    const it = { src: f, orig: f, g: null, val: baseCol && baseCol[f] != null ? String(baseCol[f]).trim() : '', fc: null, crit: [], chk: [], mod: false, dead: false };
     X.items.push(it);
     if (B.bbox[4 * f] <= B.bbox[4 * f + 2]) X.idx.insert(f, [B.bbox[4 * f], B.bbox[4 * f + 1], B.bbox[4 * f + 2], B.bbox[4 * f + 3]]);
   }
@@ -1006,7 +1016,7 @@ async function shapeBase(B, m, crit, job, p0, p1) {
   for (let k = 0; k < crit.length; k++) {
     const c = crit[k], a = p0 + step * k, b = a + step;
     prog(job, a, `작업기준 ${k + 1}/${crit.length} · ${c.title}`); await tick();
-    const fn = { cluster: opCluster, replace: opReplace, linecut: opLineCut, absorb: opAbsorb, minarea: opAbsorb }[c.op];
+    const fn = { cluster: opCluster, replace: opReplace, linecut: opLineCut, absorb: opAbsorb, minarea: opAbsorb, transfer: opTransfer, split: opSplit, recode: opRecode }[c.op];
     if (!fn) continue;
     const before = X.items.filter((it) => !it.dead).length;
     const msg = await fn(X, c.op === 'minarea' ? { ...c, tgt: '', nbr: '', maxWidth: 0, surround: 0, minarea: true } : c, job, a, b);
@@ -1167,6 +1177,73 @@ async function opAbsorb(X, c, job, a, b) {
   }
   return `대상 ${list.length}개 중 이웃에 합침 ${merged}개` + (kept ? ` · 조건 미달로 남김 ${kept}개` : '');
 }
+// 영상 판독으로 찾은 “넘길 조각”(TYPE = 원래폴리곤>받을폴리곤) 모양대로 이웃 사이 경계선을 옮김
+async function opTransfer(X, c, job, a, b) {
+  const L = LAYERS.get(c.layer);
+  if (!L || L.geom !== 'poly') return '영상 판독 결과가 없어 건너뜀';
+  const col = colOfL(L, 'TYPE'), minA = +c.minArea || 0;
+  let moved = 0, skip = 0, area = 0; const grow = new Set(), shrink = new Set();
+  for (let s = 0; s < L.n; s++) {
+    await maybeYield(job, s, a, b, L.n, `${c.title} — 경계 옮기는 중 ${s.toLocaleString()}/${L.n.toLocaleString()}`);
+    const mm = /^(\d+)>(\d+)$/.exec(String(col ? col[s] : '')); if (!mm) { skip++; continue; }
+    const f = +mm[1], t = +mm[2];
+    const sg = toJsts(L, s); if (sg.isEmpty()) continue;
+    const e = envOf(sg), cand = X.idx.query([e[0] - 1, e[1] - 1, e[2] + 1, e[3] + 1]).filter(alive(X));
+    const donors = cand.filter((i) => X.items[i].orig === f), recv = cand.filter((i) => X.items[i].orig === t);
+    if (!donors.length || !recv.length) { skip++; continue; }
+    const pieces = [];
+    for (const i of donors) { const gi = G(X, X.items[i]); if (!gi.intersects(sg)) continue; const pc = polysOnly(OP('intersection', gi, sg)); if (pc && !pc.isEmpty() && pc.getArea() > 0.01) pieces.push([i, pc]); }
+    if (!pieces.length) { skip++; continue; }
+    const pg = polysOnly(unionAll(pieces.map((q) => q[1])));
+    if (!pg || pg.isEmpty() || pg.getArea() < minA) { skip++; continue; }
+    let best = -1, bl = 0, zone; try { zone = pg.buffer(0.6, 2); } catch (er) { skip++; continue; }
+    for (const j of recv) { const gj = G(X, X.items[j]); if (!gj.intersects(zone)) continue; const ia = OP('intersection', gj, zone), v = ia ? ia.getArea() : 0; if (v > bl) { bl = v; best = j; } }
+    if (best < 0) { skip++; continue; }
+    const R = X.items[best], u = polysOnly(OP('union', G(X, R), pg));
+    if (!u || u.isEmpty()) { skip++; continue; }
+    for (const [i] of pieces) { cutItem(X, i, pg); const d = X.items[i]; d.moved = true; if (!d.crit.includes(c.title)) d.crit.push(c.title); shrink.add(i); }
+    R.g = u; R.mod = true; R.moved = true; X.idx.insert(best, envOf(u)); grow.add(best);
+    if (!R.crit.includes(c.title)) R.crit.push(c.title); if (c.chk && !R.chk.includes(chkTag(c))) R.chk.push(chkTag(c));
+    moved++; area += pg.getArea();
+  }
+  return `영상 경계를 따라 ${moved.toLocaleString()}곳(${Math.round(area).toLocaleString()}㎡)의 경계선을 옮김 — 넓어진 폴리곤 ${grow.size}개 · 줄어든 폴리곤 ${shrink.size}개` + (skip ? ` · 맞는 이웃이 없어 건너뜀 ${skip}곳` : '');
+}
+// 다른 자료의 폴리곤 경계로 기준 경계를 나눔(값은 그대로)
+async function opSplit(X, c, job, a, b) {
+  const L = LAYERS.get(c.layer);
+  if (!L || L.geom !== 'poly') return '나눌 때 따를 면 자료가 없어 건너뜀';
+  const col = c.field ? colOfL(L, c.field) : null, pre = splitList(c.filt), allow = splitList(c.allow), minA = Math.max(1, +c.minArea || 50);
+  let made = 0, tot = 0;
+  for (let s = 0; s < L.n; s++) {
+    await maybeYield(job, s, a, b, L.n, `${c.title} — ${s.toLocaleString()}/${L.n.toLocaleString()}`);
+    if (pre.length) { const v = col ? col[s] : null; if (v == null || !pre.some((p) => String(v).trim().startsWith(p))) continue; }
+    const sg = toJsts(L, s); if (sg.isEmpty()) continue; tot++;
+    for (const i of X.idx.query(envOf(sg)).filter(alive(X))) {
+      const it = X.items[i];
+      if (allow.length && !tokMatch(it.val, allow)) continue;
+      const gi = G(X, it); if (!gi.intersects(sg)) continue;
+      const ins = polysOnly(OP('intersection', gi, sg)); if (!ins || ins.isEmpty()) continue;
+      const ia = ins.getArea(), ga = gi.getArea(); if (ia < minA || ga - ia < minA) continue;
+      const rest = polysOnly(OP('difference', gi, sg)); if (!rest || rest.isEmpty()) continue;
+      it.g = rest; it.mod = true;
+      addItem(X, { src: -1, orig: it.orig, g: ins, val: it.val, img: it.img || null, fc: it.fc, crit: it.crit.concat([c.title]), chk: c.chk ? it.chk.concat([chkTag(c)]) : it.chk.slice(), mod: true, dead: false });
+      made++;
+    }
+  }
+  return `따를 면 ${tot.toLocaleString()}개의 경계로 나눔 → 새로 생긴 폴리곤 ${made.toLocaleString()}개` + ` (한쪽 조각이 ${minA}㎡ 미만이면 나누지 않음)`;
+}
+// 값(또는 앞 기준의 유형 코드)으로 골라 유형 코드만 바꿈
+async function opRecode(X, c) {
+  const from = splitList(c.from);
+  if (!from.length || !c.code) return '바꿀 값이나 새 코드가 없어 건너뜀';
+  let n = 0;
+  for (const it of X.items) {
+    if (it.dead) continue;
+    if (!(tokMatch(it.val, from) || (it.fc && tokMatch(it.fc.code, from)))) continue;
+    if (c.fc) it.fc = c.fc; it.val = String(c.code); if (!it.crit.includes(c.title)) it.crit.push(c.title); n++;
+  }
+  return `값이 ${from.join(',')}(으)로 시작하는 폴리곤 ${n.toLocaleString()}개의 유형을 ${c.code}(으)로 바꿈`;
+}
 function emitRing(arr, coords, exterior) {
   let cs = arr; const ccw = jsts.algorithm.Orientation.isCCW(cs);
   if (exterior === ccw) cs = cs.slice().reverse(); // 외곽=시계방향, 구멍=반시계방향
@@ -1174,7 +1251,7 @@ function emitRing(arr, coords, exterior) {
   return cs.length;
 }
 function itemsToLayer(X) {
-  const B = X.B, coords = [], rs = [], fr = [0], meta = { src: [], fc: [], crit: [], chk: [], item: [], img: [] };
+  const B = X.B, coords = [], rs = [], fr = [0], meta = { src: [], fc: [], crit: [], chk: [], item: [], img: [], mv: [] };
   let pi = 0;
   for (let ii = 0; ii < X.items.length; ii++) {
     const it = X.items[ii];
@@ -1194,7 +1271,7 @@ function itemsToLayer(X) {
     }
     if (rs.length === r0) continue;
     fr.push(rs.length);
-    meta.src.push(it.src); meta.item.push(ii); meta.img.push(it.img || null); meta.fc.push(it.fc); meta.crit.push(it.crit.join('; ')); meta.chk.push(it.chk.join('; '));
+    meta.src.push(it.src); meta.mv.push(it.moved ? 1 : 0); meta.item.push(ii); meta.img.push(it.img || null); meta.fc.push(it.fc); meta.crit.push(it.crit.join('; ')); meta.chk.push(it.chk.join('; '));
   }
   rs.push(pi);
   const L = { geom: 'poly', n: fr.length - 1, coords: Float64Array.from(coords), ringStart: Uint32Array.from(rs), featRing: Uint32Array.from(fr), fields: [], cols: [] };
@@ -1408,6 +1485,9 @@ const CRIT_OPS = {
   cluster: { name: '점 군집 → 새 경계 그리기', hint: '현장조사 점이 일정 거리 안에 일정 개수 이상 모이면 그 범위를 새 폴리곤으로 잘라내고 지정한 유형을 줌 (예: 묘지).' },
   imgroad: { name: '영상에서 임도 따기 (항공영상 자동 판독)', hint: '브이월드 항공영상을 내려받아 산림 폴리곤(자를 대상) 안에서 주변 숲보다 밝고 길쭉한 선형 지물(임도·산길)을 찾고, 그 모양대로 기준 경계를 잘라 새 폴리곤으로 넣음. 나무에 가려 끊긴 구간·그늘진 구간은 못 찾을 수 있어 검토 필요 표시를 남김.' },
   imgchange: { name: '영상에서 색·질감이 달라진 부분 따기', hint: '항공영상에서 폴리곤마다 대표 색·밝기·질감을 구하고, 그와 뚜렷이 다른 덩어리(벌채지·나지·새 건물·농지 전환 등)를 찾아 그 모양대로 경계를 잘라 새 폴리곤으로 넣음. 새 폴리곤의 유형은 다른 기초자료(토지피복 등)가 있으면 그 자료로, 없으면 영상 색으로(산림·초지·나지·시가지·수역) 정함.' },
+  imgsnap: { name: '영상 경계선에 맞춰 경계 옮기기', hint: '이웃한 두 폴리곤의 경계 둘레(정한 폭 안)에서 화소마다 영상 색·밝기·질감이 어느 쪽 폴리곤의 대표값에 더 가까운지 따져, 더 가까운 쪽으로 넘김. 결과적으로 과거지도 경계선이 최신 정사영상에 보이는 경계(숲 가장자리·논둑·도로변 등)로 옮겨짐. 경계 밖으로 멀리 가지는 않으므로 큰 변화는 “달라진 부분 따기”가 맡음.' },
+  split: { name: '다른 자료의 경계로 나누기', hint: '지정한 자료(예: 토지피복·임상도·지적)의 폴리곤 경계로 기준 경계를 잘라 나눔. 나뉜 조각은 원래 값을 가진 채로 남고, 유형은 결과 판정 규칙이 다시 정함. 한쪽 조각이 정한 면적보다 작으면 나누지 않음.' },
+  recode: { name: '유형 코드 바꾸기', hint: '기준 경계의 값(또는 앞 기준에서 정한 유형 코드)이 지정한 앞자리로 시작하는 폴리곤의 유형을 지정한 코드로 바꿈. 경계는 그대로임.' },
   linecut: { name: '선 자료(임도 노선) 폭만큼 따기', hint: '임도·도로 중심선 SHP(선)를 정한 폭으로 넓혀 그 모양대로 기준 경계를 잘라 새 폴리곤으로 넣음. 산림청 임도 노선 자료가 있으면 영상 판독보다 정확함.' },
   replace: { name: '다른 자료의 경계 따르기', hint: '지정한 자료(예: 토지피복 도로)의 폴리곤 모양대로 기준 경계를 잘라 끼워 넣음. 폭·면적 조건으로 “큰 도로”만 고를 수 있음.' },
   absorb: { name: '좁거나 작은 폴리곤을 이웃에 합치기', hint: '조건에 맞는 폴리곤(예: 산림 안의 좁은 도로)을 둘러싼 이웃(예: 산림)에 합쳐 경계를 지움.' },
@@ -1420,6 +1500,7 @@ const CRIT_DEFAULTS = {
     { id: 'c2', on: true, op: 'replace', title: '큰 도로는 토지피복 경계', text: '폭이 넓은 도로(대로·국도 등)는 토지피복지도의 도로 경계를 그대로 따름.', p: { layerCat: 'lc', layer: '', filt: '154', minWidth: 8, minArea: 0, code: 'B11', name: '도로', chk: false } },
     { id: 'c3', on: true, op: 'imgroad', title: '임도는 영상에서 보이는 대로 따기', text: '산에 있는 도로(임도)는 정사영상에서 눈으로 보이는 곳을 따서 산림과 다른 폴리곤으로 분리함. 나무에 가린 구간은 영상 판독으로 보완.', p: { allow: '3,E,림', scope: 'all', zoom: 18, sens: 2, maxWidth: 12, minLen: 40, minArea: 60, code: 'B12', name: '임도', chk: true } },
     { id: 'c3b', on: false, op: 'linecut', title: '임도 노선 자료로 따기', text: '산림청 임도 노선(선) SHP가 있으면 폭만큼 넓혀 경계를 따는 쪽이 더 정확함. 자료를 “도로·교통” 탭에 올리고 켬.', p: { layerCat: 'road', layer: '', filt: '', width: 4, allow: '3,E,림', code: 'B12', name: '임도', chk: false } },
+    { id: 'c7', on: true, op: 'imgsnap', title: '영상 경계선에 맞춰 경계 옮기기', text: '과거지도 경계가 최신 정사영상의 색·질감 경계와 어긋난 곳은, 경계 둘레(기본 12 m) 안에서 영상에 보이는 경계를 따라 이웃 폴리곤과의 경계선을 옮김.', p: { allow: '', scope: 'all', zoom: 17, band: 12, sens: 3, minArea: 30, chk: true } },
     { id: 'c6', on: true, op: 'imgchange', title: '영상에서 달라진 부분 따기', text: '정사영상에서 색상이나 질감이 주변과 뚜렷이 달라진 부분(벌채·개간·나지·새 시설 등)은 과거지도 경계를 잘라 새 폴리곤으로 분리하고, 유형은 다른 기초자료(토지피복 등)를 참고해 정함.', p: { allow: '', scope: 'all', zoom: 17, sens: 3, minArea: 300, edge: 3, chk: true } },
     { id: 'c4', on: false, op: 'minarea', title: '최소 작성 면적', text: '과업 지침의 최소 도면화 면적보다 작은 조각은 이웃 비오톱에 합침 (면적은 용역 지침에 맞게 입력).', p: { maxArea: 100 } },
     { id: 'c5', on: true, op: 'memo', title: '영상 판독 기준', text: '자동 처리 후 “검토 필요(CHK)” 표시가 붙은 폴리곤은 최신 정사영상과 현장조사표로 경계를 확인·수정함.', p: {} }
@@ -1732,6 +1813,11 @@ function loadOutputs() {
     }
     LS.set('gb2.critver', 3); LS.set('gb2.outputs', out.map(({ run, exported, ...o }) => o));
   }
+  if (LS.get('gb2.critver', 1) < 4) { // 4판: 영상 경계선에 맞춰 경계 옮기기 추가
+    const b = out.find((o) => o.id === 'biotope');
+    if (b && !b.criteria.some((c) => c.op === 'imgsnap')) { const d = CRIT_DEFAULTS.biotope.find((c) => c.op === 'imgsnap'); const i = b.criteria.findIndex((c) => c.op === 'imgchange' || c.op === 'minarea' || c.op === 'memo'); b.criteria.splice(i < 0 ? b.criteria.length : i, 0, JSON.parse(JSON.stringify(d))); }
+    LS.set('gb2.critver', 4); LS.set('gb2.outputs', out.map(({ run, exported, ...o }) => o));
+  }
   return out;
 }
 function saveOutputs() { LS.set('gb2.outputs', S.outputs.map(({ run, exported, ...o }) => o)); }
@@ -1901,6 +1987,9 @@ const CRIT_NEW = {
   imgroad: () => ({ allow: '3,E,림', scope: 'all', zoom: 18, sens: 2, maxWidth: 12, minLen: 40, minArea: 60, code: 'B12', name: '임도', chk: true }),
   linecut: () => ({ layerCat: 'road', layer: '', filt: '', width: 4, allow: '3,E,림', code: 'B12', name: '임도', chk: false }),
   imgchange: () => ({ allow: '', scope: 'all', zoom: 17, sens: 3, minArea: 300, edge: 3, chk: true }),
+  imgsnap: () => ({ allow: '', scope: 'all', zoom: 17, band: 12, sens: 3, minArea: 30, chk: true }),
+  split: () => ({ layerCat: 'lc', layer: '', filt: '', allow: '', minArea: 50, chk: false }),
+  recode: () => ({ from: '', code: '', name: '' }),
   memo: () => ({})
 };
 function critParamsHTML(c, base) {
@@ -1912,6 +2001,9 @@ function critParamsHTML(c, base) {
   const PICK = (k) => base ? `<button class="btn" type="button" data-pick="${k}" style="align-self:flex-end;padding:5px 9px">▾ 값 목록에서 고르기</button><div class="vp hidden" data-vp="${k}"></div>` : '';
   if (c.op === 'imgroad') return F('allow', '자를 대상(산림) 값 앞자리·글자', 120, '예: 3,E,림') + PICK('allow') + SEL('scope', '판독 범위', [['all', '자를 대상 폴리곤 전체'], ['view', '지금 지도 화면 안만']]) + SEL('zoom', '영상 해상도', [[18, '약 0.5 m (권장)'], [17, '약 1 m (4배 빠름, 좁은 임도는 놓침)']]) + F('sens', '밝기 기준(낮을수록 많이 찾음)', 60, '', 'n') + F('maxWidth', '최대 폭(m)', 60, '', 'n') + F('minLen', '최소 길이(m)', 60, '', 'n') + F('minArea', '최소 면적(㎡)', 60, '', 'n') + F('code', '적용 유형 코드', 70, '예: B12') + F('name', '유형 명칭', 90, '예: 임도') + CK('chk', '검토 필요(영상 확인) 표시');
   if (c.op === 'imgchange') return F('allow', '살펴볼 폴리곤 값(비우면 전부)', 130, '비우면 전부') + PICK('allow') + SEL('scope', '판독 범위', [['all', '기준 경계 전체'], ['view', '지금 지도 화면 안만']]) + SEL('zoom', '영상 해상도', [[17, '약 1 m (권장)'], [18, '약 0.5 m (4배 느림)']]) + F('sens', '민감도(낮을수록 많이 찾음, 2~5)', 60, '', 'n') + F('minArea', '최소 면적(㎡)', 70, '', 'n') + F('edge', '경계선 둘레 무시 폭(m)', 60, '', 'n') + CK('chk', '검토 필요(영상 확인) 표시');
+  if (c.op === 'imgsnap') return F('allow', '옮길 폴리곤 값(비우면 전부)', 130, '비우면 전부') + PICK('allow') + SEL('scope', '판독 범위', [['all', '기준 경계 전체'], ['view', '지금 지도 화면 안만']]) + SEL('zoom', '영상 해상도', [[17, '약 1 m (권장)'], [18, '약 0.5 m (4배 느림)']]) + F('band', '경계에서 옮길 수 있는 폭(m)', 60, '', 'n') + F('sens', '민감도(낮을수록 많이 옮김, 1~5)', 60, '', 'n') + F('minArea', '최소 옮길 면적(㎡)', 70, '', 'n') + CK('chk', '옮긴 폴리곤에 검토 필요 표시');
+  if (c.op === 'split') return layerSel('poly') + F('filt', '값 앞자리 조건', 90, '비우면 전부') + F('allow', '나눌 대상 값(비우면 전부)', 110, '') + PICK('allow') + F('minArea', '한쪽이 이보다 작으면 안 나눔(㎡)', 70, '', 'n') + CK('chk', '검토 필요 표시');
+  if (c.op === 'recode') return F('from', '바꿀 값 앞자리', 110, '예: E1,154') + PICK('from') + F('code', '새 유형 코드', 70, '예: B11') + F('name', '유형 명칭', 90, '');
   if (c.op === 'linecut') return layerSel('line') + F('filt', '값에 포함된 글자', 90, '비우면 전부') + F('width', '폭(m)', 50, '', 'n') + F('allow', '자를 대상 값 앞자리·글자', 120, '예: 3,E,림') + PICK('allow') + F('code', '적용 유형 코드', 70, '예: B12') + F('name', '유형 명칭', 90, '예: 임도') + CK('chk', '검토 필요 표시');
   if (c.op === 'replace') return layerSel('poly') + F('filt', '값 앞자리 조건', 90, '예: 154') + F('allow', '자를 대상 값(비우면 전부)', 110, '') + F('minWidth', '최소 평균 폭(m)', 60, '', 'n') + F('minArea', '최소 면적(㎡)', 70, '', 'n') + F('code', '적용 유형 코드', 70, '비우면 규칙 판정') + F('name', '유형 명칭', 90, '') + CK('chk', '검토 필요 표시');
   if (c.op === 'absorb') return F('tgt', '대상 값 앞자리', 90, '예: 154') + F('maxWidth', '평균 폭 미만(m)', 60, '', 'n') + F('maxArea', '또는 면적 미만(㎡)', 70, '', 'n') + F('nbr', '합칠 이웃 값 앞자리', 90, '예: 3') + F('surround', '이웃이 둘러싼 비율 ≥ %', 60, '', 'n') + CK('chk', '합친 폴리곤에 검토 필요 표시');
@@ -1971,16 +2063,17 @@ function critPayload(o, roads) {
   const rulesAll = o.rules.map((r) => ({ ...r }));
   const list = (o.criteria || []).filter((c) => c.on && CRIT_OPS[c.op] && c.op !== 'memo').map((c) => {
     const p = c.p || {}, x = { ...p, id: c.id, op: c.op, title: c.title || CRIT_OPS[c.op].name };
-    ['minN', 'dist', 'buf', 'minArea', 'minWidth', 'maxWidth', 'maxArea', 'surround', 'width', 'sens', 'zoom', 'minLen'].forEach((k) => { if (x[k] != null) x[k] = +x[k] || 0; });
+    ['minN', 'dist', 'buf', 'minArea', 'minWidth', 'maxWidth', 'maxArea', 'surround', 'width', 'sens', 'zoom', 'minLen', 'band'].forEach((k) => { if (x[k] != null) x[k] = +x[k] || 0; });
     if (c.op === 'imgroad') { const rd = roads && roads[c.id]; Object.assign(x, { op: 'replace', layer: rd ? rd.id : '', field: 'TYPE', filt: '', minWidth: 0, layerName: '영상 판독 임도' }); }
     if (c.op === 'imgchange') { const rd = roads && roads[c.id]; Object.assign(x, { op: 'replace', layer: rd ? rd.id : '', field: 'TYPE', filt: '', minWidth: 0, minArea: 0, code: '', imgField: true, layerName: '영상 변화 부분' }); }
-    if (c.op === 'cluster' || c.op === 'replace' || c.op === 'linecut') {
+    if (c.op === 'imgsnap') { const rd = roads && roads[c.id]; Object.assign(x, { op: 'transfer', layer: rd ? rd.id : '', layerName: '영상 경계 맞춤' }); }
+    if (c.op === 'cluster' || c.op === 'replace' || c.op === 'linecut' || c.op === 'split') {
       const geom = c.op === 'cluster' ? 'point' : c.op === 'linecut' ? 'line' : 'poly', cat = p.layerCat || (geom === 'point' ? 'etc' : geom === 'line' ? 'road' : 'lc');
       let L = p.layer && layerById(p.layer);
       if (!L || L.geom !== geom) L = S.layers.find((l) => l.kind === 'vector' && l.geom === geom && l.cat === cat) || (geom !== 'poly' ? S.layers.find((l) => l.kind === 'vector' && l.geom === geom) : null);
       x.layer = L ? L.id : ''; x.field = L ? L.field : ''; x.layerName = L ? L.name : CAT[cat].name;
     }
-    if (c.op === 'cluster' || c.op === 'replace' || c.op === 'linecut' || c.op === 'imgroad') {
+    if (c.op === 'cluster' || c.op === 'replace' || c.op === 'linecut' || c.op === 'imgroad' || c.op === 'recode') {
       if (String(p.code || '').trim()) {
         const cd = String(p.code).trim(); let ri = rulesAll.findIndex((r) => r.code === cd);
         if (ri < 0) { const d = OUT_DEFAULTS.flatMap((q) => q.rules).find((r) => r.code === cd); rulesAll.push({ code: cd, name: p.name || cd, color: d ? d.color : autoColor(cd), when: 'false', crit: true }); ri = rulesAll.length - 1; }
@@ -2043,14 +2136,16 @@ function guideHTML() {
 
 
 // ---------- 실시간 진행 표시(지도 위) ----------
-const APP_VER = '2026.11.18-6';
+const APP_VER = '2026.11.18-7';
 const LIVE = { src: new ol.source.Vector({ wrapX: false }) };
 LIVE.styles = {
   tgt: new ol.style.Style({ stroke: new ol.style.Stroke({ color: 'rgba(255,255,255,.9)', width: 1.2, lineDash: [5, 4] }) }),
   blk: new ol.style.Style({ fill: new ol.style.Fill({ color: 'rgba(0,200,255,.10)' }), stroke: new ol.style.Stroke({ color: '#00c8ff', width: 2.5 }) }),
   road: new ol.style.Style({ fill: new ol.style.Fill({ color: 'rgba(255,0,200,.75)' }), stroke: new ol.style.Stroke({ color: '#ff00c8', width: 1 }) }),
   cut: new ol.style.Style({ fill: new ol.style.Fill({ color: 'rgba(255,214,0,.55)' }), stroke: new ol.style.Stroke({ color: '#ffd600', width: 2 }) }),
-  chg: new ol.style.Style({ fill: new ol.style.Fill({ color: 'rgba(255,120,0,.7)' }), stroke: new ol.style.Stroke({ color: '#ff7800', width: 1.2 }) })
+  chg: new ol.style.Style({ fill: new ol.style.Fill({ color: 'rgba(255,120,0,.7)' }), stroke: new ol.style.Stroke({ color: '#ff7800', width: 1.2 }) }),
+  snap: new ol.style.Style({ fill: new ol.style.Fill({ color: 'rgba(0,229,255,.65)' }), stroke: new ol.style.Stroke({ color: '#00b8d4', width: 1 }) }),
+  mv: new ol.style.Style({ stroke: new ol.style.Stroke({ color: '#00e5ff', width: 2.4 }) })
 };
 LIVE.lay = new ol.layer.Vector({ source: LIVE.src, zIndex: 1000, style: (f) => LIVE.styles[f.get('k')] });
 map.addLayer(LIVE.lay);
@@ -2324,6 +2419,170 @@ function changePixels(px, md, W, H, nPoly, q) {
   return out;
 }
 
+// ---------- 영상 경계선에 맞춰 경계 옮기기 ----------
+// 폴리곤을 화소 격자에 직접 칠함(가장자리 번짐 없이 화소 중심 기준, 짝홀 규칙)
+function rasterPolys(polys, inB, ox, oy, res, W, H) {
+  const PID = new Int32Array(W * H), rows = new Array(H);
+  for (const qi of inB) {
+    const q = polys[qi], t = q.g.getType(), cs = q.g.getCoordinates();
+    const rings = t === 'Polygon' ? cs : t === 'MultiPolygon' ? [].concat(...cs) : [];
+    const touched = [];
+    for (const ring of rings) for (let k = 1; k < ring.length; k++) {
+      const X1 = (ring[k - 1][0] - ox) / res, Y1 = (oy - ring[k - 1][1]) / res, X2 = (ring[k][0] - ox) / res, Y2 = (oy - ring[k][1]) / res;
+      if (Y1 === Y2) continue;
+      const r0 = Math.max(0, Math.ceil(Math.min(Y1, Y2) - 0.5)), r1 = Math.min(H - 1, Math.ceil(Math.max(Y1, Y2) - 0.5) - 1);
+      for (let y = r0; y <= r1; y++) { const x = X1 + (y + 0.5 - Y1) * (X2 - X1) / (Y2 - Y1); let a = rows[y]; if (!a) { a = rows[y] = []; touched.push(y); } a.push(x); }
+    }
+    const id = qi + 1;
+    for (const y of touched) {
+      const a = rows[y].sort((u, v) => u - v); rows[y] = undefined;
+      for (let k = 0; k + 1 < a.length; k += 2) { const xa = Math.max(0, Math.ceil(a[k] - 0.5)), xb = Math.min(W, Math.ceil(a[k + 1] - 0.5)); for (let x = xa; x < xb; x++) PID[y * W + x] = id; }
+    }
+  }
+  return PID;
+}
+// 가로·세로로 나눠 하는 상자 평균(창 2R+1)
+function boxMean(src, W, H, R, out, tmp) {
+  const n = 2 * R + 1;
+  for (let y = 0; y < H; y++) { const o = y * W; let s = 0; for (let x = -R; x <= R; x++) s += src[o + Math.min(W - 1, Math.max(0, x))]; for (let x = 0; x < W; x++) { tmp[o + x] = s / n; s += src[o + Math.min(W - 1, x + R + 1)] - src[o + Math.max(0, x - R)]; } }
+  for (let x = 0; x < W; x++) { let s = 0; for (let y = -R; y <= R; y++) s += tmp[Math.min(H - 1, Math.max(0, y)) * W + x]; for (let y = 0; y < H; y++) { out[y * W + x] = s / n; s += tmp[Math.min(H - 1, y + R + 1) * W + x] - tmp[Math.max(0, y - R) * W + x]; } }
+  return out;
+}
+// 경계 둘레 화소를 영상 특징이 더 가까운 이웃 폴리곤으로 넘김 → (원래, 받을) 짝별 덩어리
+function snapPixels(px, PID, W, H, q) {
+  const N = W * H, L = new Float32Array(N), Gs = new Float32Array(N);
+  for (let i = 0, j = 0; i < N; i++, j += 4) { if (px[j + 3] < 128) { PID[i] = 0; continue; } const r = px[j], g = px[j + 1], b = px[j + 2]; L[i] = (r * 77 + g * 150 + b * 29) / 256; Gs[i] = 100 * g / (r + g + b + 1); }
+  const tmp = new Float32Array(N), Lm = boxMean(L, W, H, 2, new Float32Array(N), tmp), Gm = boxMean(Gs, W, H, 2, new Float32Array(N), tmp);
+  for (let i = 0; i < N; i++) L[i] = L[i] * L[i];
+  const T = boxMean(L, W, H, 2, Gs, tmp); // Gs 자리 재사용: 밝기 제곱 평균
+  for (let i = 0; i < N; i++) T[i] = Math.sqrt(Math.max(0, T[i] - Lm[i] * Lm[i]));
+  // 경계(이웃 화소의 폴리곤 번호가 다름)에서 떨어진 거리
+  const D = new Float32Array(N), INF = 1e9;
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) { const i = y * W + x, p = PID[i]; D[i] = p && (x === 0 || y === 0 || x === W - 1 || y === H - 1 || PID[i - 1] !== p || PID[i + 1] !== p || PID[i - W] !== p || PID[i + W] !== p) ? 0 : INF; }
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) { const i = y * W + x; if (!D[i]) continue; let v = D[i]; if (x > 0) v = Math.min(v, D[i - 1] + 3); if (y > 0) { v = Math.min(v, D[i - W] + 3); if (x > 0) v = Math.min(v, D[i - W - 1] + 4); if (x < W - 1) v = Math.min(v, D[i - W + 1] + 4); } D[i] = v; }
+  for (let y = H - 1; y >= 0; y--) for (let x = W - 1; x >= 0; x--) { const i = y * W + x; if (!D[i]) continue; let v = D[i]; if (x < W - 1) v = Math.min(v, D[i + 1] + 3); if (y < H - 1) { v = Math.min(v, D[i + W] + 3); if (x < W - 1) v = Math.min(v, D[i + W + 1] + 4); if (x > 0) v = Math.min(v, D[i + W - 1] + 4); } D[i] = v; }
+  const band = q.bandPx, b3 = 3 * band;
+  // 폴리곤별 대표값: 경계 둘레(band)를 뺀 안쪽 화소로, 이상값 빼고 한 번 더
+  const st = new Map(), cntAll = new Map();
+  for (let i = 0; i < N; i++) if (PID[i]) cntAll.set(PID[i], (cntAll.get(PID[i]) || 0) + 1);
+  const acc = (pass) => { for (let i = 0; i < N; i++) { const id = PID[i]; if (!id || D[i] <= b3) continue; let o = st.get(id); if (!o) st.set(id, o = { n: 0, s: [0, 0, 0], q: [0, 0, 0], n2: 0, s2: [0, 0, 0], q2: [0, 0, 0], m: null, d: null }); const v = [Lm[i], Gm[i], T[i]];
+    if (!pass) { o.n++; for (let k = 0; k < 3; k++) { o.s[k] += v[k]; o.q[k] += v[k] * v[k]; } }
+    else { let z = 0; for (let k = 0; k < 3; k++) z = Math.max(z, Math.abs(v[k] - o.m[k]) / o.d[k]); if (z < 2.5) { o.n2++; for (let k = 0; k < 3; k++) { o.s2[k] += v[k]; o.q2[k] += v[k] * v[k]; } } } } };
+  const FLOOR = [6, 1, 2.5], fin = (o, n, s, qq) => { o.m = s.map((v) => v / n); o.d = qq.map((v, k) => Math.max(FLOOR[k], Math.sqrt(Math.max(0, v / n - o.m[k] ** 2)))); };
+  acc(0); for (const o of st.values()) fin(o, o.n, o.s, o.q);
+  acc(1); for (const o of st.values()) if (o.n2 > 100) fin(o, o.n2, o.s2, o.q2);
+  const ok = (id) => { const o = st.get(id); return o && o.n >= 300; };
+  const cost = (o, i) => { const a = (Lm[i] - o.m[0]) / o.d[0], b = (Gm[i] - o.m[1]) / o.d[1], c = (T[i] - o.m[2]) / o.d[2]; return Math.sqrt(a * a + b * b + 0.5 * c * c); };
+  // 둘레 화소마다 주변(옮길 수 있는 폭 안) 이웃 폴리곤 후보와 비교
+  const offs = []; for (const f of [1, 0.6, 0.3]) for (let k = 0; k < 8; k++) { const r = Math.max(1, Math.round(band * f)), an = k * Math.PI / 4; offs.push([Math.round(r * Math.cos(an)), Math.round(r * Math.sin(an))]); }
+  const MV = new Int32Array(N), margin = 0.35 * q.sens;
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+    const i = y * W + x, cur = PID[i]; if (!cur || D[i] > b3 || !ok(cur)) continue;
+    const oc = st.get(cur), cc = cost(oc, i); if (cc < 1) continue;
+    let best = 0, bc = 1e9; const seen = [];
+    for (const [dx, dy] of offs) { const xx = x + dx, yy = y + dy; if (xx < 0 || yy < 0 || xx >= W || yy >= H) continue; const id = PID[yy * W + xx]; if (!id || id === cur || seen.includes(id) || !ok(id)) continue; seen.push(id); if (!q.can(cur, id)) continue; const v = cost(st.get(id), i); if (v < bc) { bc = v; best = id; } }
+    if (best && bc + margin < cc) MV[i] = best;
+  }
+  // 잡음 줄이기: 5×5 창의 절반 이상이 옮겨질 화소일 때만
+  const J = new Int32Array((W + 1) * (H + 1)); for (let y = 0; y < H; y++) { let a = 0; for (let x = 0; x < W; x++) { a += MV[y * W + x] ? 1 : 0; J[(y + 1) * (W + 1) + x + 1] = J[y * (W + 1) + x + 1] + a; } }
+  const R2 = 2, thr = 13;
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) { const i = y * W + x; if (!MV[i]) continue; const xa = Math.max(0, x - R2), xb = Math.min(W, x + R2 + 1), ya = Math.max(0, y - R2), yb = Math.min(H, y + R2 + 1); if (J[yb * (W + 1) + xb] - J[ya * (W + 1) + xb] - J[yb * (W + 1) + xa] + J[ya * (W + 1) + xa] < thr) MV[i] = -MV[i]; }
+  for (let i = 0; i < N; i++) if (MV[i] < 0) MV[i] = 0;
+  // (원래, 받을) 짝이 같은 화소끼리 이어진 덩어리 — 받을 폴리곤과 맞닿아 있어야 함
+  const lab = new Uint8Array(N), stack = new Int32Array(N), out = [];
+  for (let s0 = 0; s0 < N; s0++) {
+    if (!MV[s0] || lab[s0]) continue;
+    const from = PID[s0], to = MV[s0]; let sp = 0, touch = false; stack[sp++] = s0; lab[s0] = 1; const pix = [];
+    while (sp) { const i = stack[--sp], x = i % W, y = (i / W) | 0; pix.push(i);
+      if ((x > 0 && PID[i - 1] === to) || (x < W - 1 && PID[i + 1] === to) || (y > 0 && PID[i - W] === to) || (y < H - 1 && PID[i + W] === to)) touch = true;
+      for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) { if (!dx && !dy) continue; const xx = x + dx, yy = y + dy; if (xx < 0 || yy < 0 || xx >= W || yy >= H) continue; const k = yy * W + xx; if (!lab[k] && MV[k] === to && PID[k] === from) { lab[k] = 1; stack[sp++] = k; } } }
+    if (!touch || pix.length < q.minA || pix.length > 0.6 * (cntAll.get(from) || 0)) continue;
+    pix.sort((a, b) => a - b);
+    const runs = []; let k = 0;
+    while (k < pix.length) { const y = (pix[k] / W) | 0, x0 = pix[k] % W; let x1 = x0 + 1; k++; while (k < pix.length && pix[k] === y * W + x1) { x1++; k++; } runs.push(y, x0, x1); }
+    out.push({ runs, from, to });
+  }
+  return out;
+}
+async function imgSnapExtract(o, c, base) {
+  const p = { ...CRIT_NEW.imgsnap(), ...(c.p || {}) }, z = +p.zoom === 18 ? 18 : 17, allow = splitListM(p.allow);
+  const tm = 2 * WM / 2 ** z, res = tm / 256, col = base.col;
+  let vExt = null; if (p.scope === 'view') vExt = ol.proj.transformExtent(view.calculateExtent(map.getSize()), S.crs, 'EPSG:3857');
+  const tiles = new Map(), polys = [], all = [];
+  let aExt = ol.extent.createEmpty();
+  for (let f = 0; f < base.n; f++) {
+    const g0 = base.features[f] && base.features[f].getGeometry(); if (!g0) continue;
+    const g = g0.clone().transform(S.crs, 'EPSG:3857'), e = g.getExtent();
+    if (vExt && !ol.extent.intersects(e, vExt)) continue;
+    const okv = !allow.length || tokMatchM(col ? col[f] : '', allow);
+    all.push({ g, e, f, ok: okv });
+    if (!okv) continue;
+    ol.extent.extend(aExt, e);
+    const ee = vExt ? ol.extent.getIntersection(e, vExt) : e;
+    const x0 = Math.floor((ee[0] + WM) / tm), x1 = Math.floor((ee[2] + WM) / tm), y0 = Math.floor((WM - ee[3]) / tm), y1 = Math.floor((WM - ee[1]) / tm);
+    for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) tiles.set(x + ',' + y, [x, y]);
+  }
+  if (!tiles.size) throw new Error(p.scope === 'view' ? '지금 지도 화면 안에 경계를 옮길 폴리곤이 없음 — 대상지로 이동하거나 판독 범위를 “기준 경계 전체”로' : `기준 경계에 옮길 값(${allow.join(',')})을 가진 폴리곤이 없음`);
+  for (const q of all) if (q.ok || ol.extent.intersects(q.e, ol.extent.buffer(aExt, 50))) polys.push(q);
+  const key = JSON.stringify(['snap', base.id, p.allow, p.scope === 'view' ? vExt.map((v) => Math.round(v)) : 'all', z, p.band, p.sens, p.minArea]);
+  liveClear();
+  if (ROAD_CACHE.has(key)) { const cc = ROAD_CACHE.get(key); if (cc.geom && cc.geom.n) { const tmp = { geom: 'poly', name: '경계' }; await buildFeatures(tmp, cc.geom); tmp.features.forEach((ft) => LIVE.src.addFeature(new ol.Feature({ geometry: ft.getGeometry(), k: 'snap' }))); } liveMsg(`<b>${esc(c.title)}</b> — 앞서 찾은 옮길 경계 ${fmt(cc.n)}곳을 다시 씀`); return cc; }
+  if (!(await confirmTiles(c, tiles.size, z))) throw { cancelled: true, msg: '영상 판독을 취소함' };
+  const toS = ol.proj.getTransform('EPSG:3857', S.crs);
+  if (p.scope !== 'view') view.fit(ol.proj.transformExtent(aExt, 'EPSG:3857', S.crs), { padding: [60, 60, 60, 60], duration: 500 });
+  const blkF = new ol.Feature({ geometry: new ol.geom.Polygon([[[0, 0], [0, 0], [0, 0], [0, 0]]]), k: 'blk' }); LIVE.src.addFeature(blkF);
+  const BS = 6, blocks = new Map();
+  for (const [x, y] of tiles.values()) { const k = Math.floor(x / BS) + ',' + Math.floor(y / BS); if (!blocks.has(k)) blocks.set(k, [Math.floor(x / BS), Math.floor(y / BS)]); }
+  const rects = [], compStart = [0], labels = []; let nb = 0, done = 0, fetched = 0, found = 0;
+  const gres = res * groundScale(tiles, tm);
+  const bandPx = Math.max(2, Math.round((+p.band || 12) / gres)), minA = Math.max(4, (+p.minArea || 30) / gres / gres), sens = +p.sens || 3;
+  const can = (a, b) => polys[a - 1].ok || polys[b - 1].ok;
+  const msg = () => liveMsg(`<b>${esc(c.title)}</b> — 영상 판독 중 ${nb}/${blocks.size} 구역 · 옮길 경계 ${fmt(found)}곳<br><span style="opacity:.75">하늘색 네모: 지금 보는 구역 · 청록색: 영상 경계를 따라 이웃 폴리곤으로 넘어가는 부분</span>`);
+  for (const [bx, by] of blocks.values()) {
+    if (o.run && o.run.stop) throw { cancelled: true };
+    nb++; setTask(`${c.title} — 영상 판독 ${nb}/${blocks.size} 구역`, 95 * done / tiles.size);
+    const b = $('#oRun'); if (b) b.textContent = `영상 판독 중 ${Math.round(100 * done / tiles.size)}%`;
+    const tx0 = bx * BS - 1, ty0 = by * BS - 1, NT = BS + 2, W = NT * 256, H = W;
+    const ox = tx0 * tm - WM, oy = WM - ty0 * tm;
+    { const e3 = [ox + 256 * res, oy - (W - 256) * res, ox + (W - 256) * res, oy - 256 * res]; const eS = ol.proj.transformExtent(e3, 'EPSG:3857', S.crs); blkF.setGeometry(new ol.geom.Polygon([[[eS[0], eS[1]], [eS[2], eS[1]], [eS[2], eS[3]], [eS[0], eS[3]], [eS[0], eS[1]]]])); }
+    msg();
+    const need = []; for (let ty = ty0; ty < ty0 + NT; ty++) for (let tx = tx0; tx < tx0 + NT; tx++) if (tiles.has(tx + ',' + ty)) need.push([tx, ty]);
+    const cv = document.createElement('canvas'); cv.width = W; cv.height = H; const g = cv.getContext('2d', { willReadFrequently: true });
+    const imgs = []; for (let i = 0; i < need.length; i += 12) imgs.push(...(await Promise.all(need.slice(i, i + 12).map(([tx, ty]) => loadTile(roadTileURL(z, tx, ty))))));
+    let got = 0; need.forEach(([tx, ty], i) => { if (imgs[i]) { g.drawImage(imgs[i], (tx - tx0) * 256, (ty - ty0) * 256, 256, 256); got++; } });
+    fetched += got; done += need.filter(([tx, ty]) => tx > tx0 && tx < tx0 + NT - 1 && ty > ty0 && ty < ty0 + NT - 1).length;
+    if (!got) continue;
+    const px = g.getImageData(0, 0, W, H).data;
+    const be = [ox, oy - H * res, ox + W * res, oy], inB = [];
+    polys.forEach((q, qi) => { if (ol.extent.intersects(q.e, be)) inB.push(qi); });
+    if (inB.length < 2) continue;
+    const PID = rasterPolys(polys, inB, ox, oy, res, W, H);
+    await tick();
+    const comps = snapPixels(px, PID, W, H, { bandPx, sens, minA, can });
+    const c0 = 256, c1 = W - 256;
+    for (const cm of comps) {
+      let any = false; const shown = [];
+      for (let i = 0; i < cm.runs.length; i += 3) {
+        const y = cm.runs[i]; if (y < c0 || y >= c1) continue;
+        const a = Math.max(cm.runs[i + 1], c0), e = Math.min(cm.runs[i + 2], c1); if (e <= a) continue;
+        const x0 = ox + a * res, y0 = oy - (y + 1) * res, x1 = ox + e * res, y1 = oy - y * res;
+        rects.push(x0, y0, x1, y1); any = true; shown.push([[x0, y0], [x1, y0], [x1, y1], [x0, y1], [x0, y0]].map((q) => toS(q)));
+      }
+      if (any) { compStart.push(rects.length / 4); labels.push(polys[cm.from - 1].f + '>' + polys[cm.to - 1].f); found++; LIVE.src.addFeature(new ol.Feature({ geometry: new ol.geom.MultiPolygon(shown.map((r) => [r])), k: 'snap' })); }
+    }
+    msg(); await tick();
+  }
+  LIVE.src.removeFeature(blkF);
+  liveMsg(`<b>${esc(c.title)}</b> — 옮길 경계 ${fmt(found)}곳을 폴리곤으로 바꾸는 중`);
+  const id = 'SNAP-' + o.id + '-' + Date.now().toString(36);
+  const r = await wjob({ type: 'roadvec', id, rects: Float64Array.from(rects), compStart: Uint32Array.from(compStart), labels, tol: res * 0.8, minArea: 0 }, (pct, t) => setTask(`${c.title} — ${t}`, 96 + pct * 0.04));
+  const out = { id, n: r.n, tiles: fetched, need: tiles.size, geom: { coords: r.coords.slice(), ringStart: r.ringStart.slice(), featRing: r.featRing.slice(), outer: r.outer.slice(), n: r.n } };
+  ROAD_CACHE.set(key, out);
+  if (fetched < tiles.size * 0.5) toast(`영상 타일을 ${fmt(fetched)}/${fmt(tiles.size)}장만 받음 — 인터넷·브이월드 키 확인`, 'warn');
+  toast(`${c.title}: 영상 타일 ${fmt(fetched)}장 판독 → 옮길 경계 ${fmt(r.n)}곳`);
+  return out;
+}
+
 // 픽셀 판독: 대상(산림) 안에서 주변보다 밝고 녹색이 약한 화소 → 너무 넓은 덩어리 제거 → 길쭉한 덩어리만
 function roadPixels(px, md, W, H, q) {
   const N = W * H, M = new Uint8Array(N), Lm = new Uint8Array(N), hist = new Uint32Array(256);
@@ -2375,16 +2634,17 @@ function roadPixels(px, md, W, H, q) {
 }
 
 // ---------- 결과 도출 ----------
-async function runOutput(o) {
+async function runOutput(o, opt) {
   const base = layerById(o.base || defaultBase(o));
   if (!base) return toast('기준 경계 레이어를 고를 것', 'warn');
   if (o.run && o.run.state === 'run') return;
+  if (!(opt && opt.noHist)) pushHist(o);
   const inputs = S.layers.filter((l) => l.kind === 'vector' && l.geom !== 'line').map((l) => ({ id: l.id, key: varKey(l), ascii: asciiKey(l), field: l.field }));
   const lookups = {}; S.layers.filter((l) => l.cat === 'lc').forEach((l) => lookups[varKey(l)] = LC_NAMES);
   o.run = { state: 'run', pct: 0 }; renderOutputs(); renderStepper();
   const roads = {};
-  for (const c of (o.criteria || []).filter((x) => x.on && (x.op === 'imgroad' || x.op === 'imgchange'))) {
-    const fn = c.op === 'imgroad' ? imgRoadExtract : imgChangeExtract;
+  for (const c of (o.criteria || []).filter((x) => x.on && (x.op === 'imgroad' || x.op === 'imgchange' || x.op === 'imgsnap'))) {
+    const fn = c.op === 'imgroad' ? imgRoadExtract : c.op === 'imgsnap' ? imgSnapExtract : imgChangeExtract;
     let tries = 0;
     for (;;) {
       try { roads[c.id] = await fn(o, c, base); break; }
@@ -2400,7 +2660,7 @@ async function runOutput(o) {
     if (o.run && o.run.stop) { o.run = null; clearTask('중지함'); liveClear(); liveMsg(''); renderAll(); return; }
   }
   const cp = critPayload(o, roads);
-  const missing = cp.list.filter((c) => (c.op === 'cluster' || c.op === 'replace' || c.op === 'linecut') && !c.layer);
+  const missing = cp.list.filter((c) => (c.op === 'cluster' || c.op === 'replace' || c.op === 'linecut' || c.op === 'split') && !c.layer);
   if (missing.length) toast('작업기준 “' + missing.map((c) => c.title).join('”, “') + '”에 쓸 자료가 없어 건너뜀', 'warn');
   o.run = { state: 'run', pct: 0 }; o.exported = new Set();
   renderOutputs(); renderStepper();
@@ -2430,17 +2690,17 @@ async function runOutput(o) {
     for (let f = 0; f < r.n; f++) if (r.code[f] >= 0) colors[f] = ruleColor(o, r.code[f], r.outCode[f], cp.rulesAll); else colors[f] = '#e6e6e6';
     const chk = r.meta ? r.meta.chk : null; let chkN = 0; if (chk) for (let f = 0; f < r.n; f++) if (chk[f] && r.code[f] !== -2) chkN++;
     const cache = new Map();
-    const isNew = r.meta ? r.meta.src : null;
-    const layer = new ol.layer.VectorImage({ source: new ol.source.Vector({ features: feats, wrapX: false }), opacity: isNew ? 0.7 : 0.8, imageRatio: 1.3, style: (ft) => { const c = colors[ft._i], w = isNew && isNew[ft._i] < 0 ? 2 : chk && chk[ft._i] ? 1 : 0, k = c + w; let s = cache.get(k); if (!s) { s = new ol.style.Style({ fill: new ol.style.Fill({ color: rgba(c, isNew ? 0.45 : 1) }), stroke: new ol.style.Stroke(w === 2 ? { color: '#ffd600', width: 2.6 } : w ? { color: '#ff8a00', width: 2 } : { color: 'rgba(30,30,30,.8)', width: 0.9 }) }); cache.set(k, s); } return s; } });
+    const isNew = r.meta ? r.meta.src : null, mvd = r.meta && r.meta.mv ? r.meta.mv : null;
+    const layer = new ol.layer.VectorImage({ source: new ol.source.Vector({ features: feats, wrapX: false }), opacity: isNew ? 0.7 : 0.8, imageRatio: 1.3, style: (ft) => { const c = colors[ft._i], w = isNew && isNew[ft._i] < 0 ? 2 : mvd && mvd[ft._i] ? 3 : chk && chk[ft._i] ? 1 : 0, k = c + w; let s = cache.get(k); if (!s) { s = new ol.style.Style({ fill: new ol.style.Fill({ color: rgba(c, isNew ? 0.45 : 1) }), stroke: new ol.style.Stroke(w === 2 ? { color: '#ffd600', width: 2.6 } : w === 3 ? { color: '#00e5ff', width: 2.2 } : w ? { color: '#ff8a00', width: 2 } : { color: 'rgba(30,30,30,.8)', width: 0.9 }) }); cache.set(k, s); } return s; } });
     S.results[o.id] = { ...r, baseId: base.id, layer, colors, geoms, chkN, rulesAll: cp.rulesAll, critUsed: JSON.parse(JSON.stringify(o.criteria || [])), at: new Date(), crs: S.crs, rulesSig: rulesSig(o), baseName: base.name, inputs };
     o.run = null;
     showResultLayer();
-    const changed = r.meta ? Array.from(r.meta.src).filter((v) => v < 0).length : 0;
+    const changed = r.meta ? Array.from(r.meta.src).filter((v) => v < 0).length : 0, movedN = mvd ? Array.from(mvd).filter((v, i) => v && !(isNew && isNew[i] < 0)).length : 0;
     liveClear(true);
     if (r.meta) { // 새로 생긴(잘라 넣은) 폴리곤을 노란색으로 잠깐 강조
-      for (let f = 0; f < r.n; f++) if (r.meta.src[f] < 0 && geoms && geoms[f]) LIVE.src.addFeature(new ol.Feature({ geometry: geoms[f].getGeometry(), k: 'cut' }));
+      for (let f = 0; f < r.n; f++) if (geoms && geoms[f]) { if (r.meta.src[f] < 0) LIVE.src.addFeature(new ol.Feature({ geometry: geoms[f].getGeometry(), k: 'cut' })); else if (mvd && mvd[f]) LIVE.src.addFeature(new ol.Feature({ geometry: geoms[f].getGeometry(), k: 'mv' })); }
       LIVE.src.getFeatures().filter((f) => f.get('k') === 'road').forEach((f) => LIVE.src.removeFeature(f));
-      liveMsg(`<b>경계 고침 완료</b> — 과거지도를 잘라 새로 넣은 폴리곤 ${fmt(changed)}개(노란 테두리) · 결과 폴리곤 ${fmt(feats.length)}개`);
+      liveMsg(`<b>경계 고침 완료</b> — 과거지도를 잘라 새로 넣은 폴리곤 ${fmt(changed)}개(노란 테두리)${movedN ? ` · 경계선을 옮긴 폴리곤 ${fmt(movedN)}개(청록 테두리)` : ''} · 결과 폴리곤 ${fmt(feats.length)}개`);
       setTimeout(() => { liveClear(); }, 6000); setTimeout(() => liveMsg(''), 20000);
     } else liveMsg('');
     clearTask(`${o.short || o.name} 도출 완료 (${((Date.now() - t0) / 1000).toFixed(1)}초)`);
@@ -2756,6 +3016,142 @@ function statsDialog() {
   });
 }
 
+// ---------- 명령창: 한국어 명령 → 경계 작업기준 → 자동 도출 (AI 없이 사이트 안에서 해석) ----------
+function pushHist(o) { (o._hist || (o._hist = [])).push({ criteria: JSON.parse(JSON.stringify(o.criteria || [])), dissolve: !!o.dissolve, result: S.results[o.id] || null }); if (o._hist.length > 10) o._hist.shift(); }
+function undoOut(o) {
+  const h = o._hist && o._hist.pop(); if (!h) return false;
+  if (o.run && o.run.state === 'run') return false;
+  const cur = S.results[o.id]; if (cur && cur.layer) resGroup.getLayers().remove(cur.layer); delete S.results[o.id];
+  if (h.result) S.results[o.id] = h.result;
+  o.criteria = h.criteria; o.dissolve = h.dissolve; saveOutputs(); liveClear(); liveMsg(''); showResultLayer(); renderAll();
+  return true;
+}
+const CMD_CLASS = [[/산림|숲|임야|수림/, '3,E,림', '산림'], [/초지|풀밭/, '4,초', '초지'], [/농경지|농지|논밭|경작지/, '2,농', '농경지'], [/나지|맨땅|공터/, '6,나', '나지'], [/시가지|시가화|주거지|건물지/, '1,시가', '시가지'], [/수역|하천|저수지/, '7,수', '수역'], [/습지/, '5,습', '습지']];
+const CMD_LAYER = [[/토지피복|피복/, 'lc', '토지피복'], [/임상/, 'for', '임상도'], [/현존식생|식생/, 'veg', '현존식생'], [/지적|지목/, 'cad', '지적'], [/용도지역|토지이용/, 'lu', '토지이용'], [/건물/, 'bld', '건물'], [/도로\s*(?:면|자료)|도로·교통/, 'road', '도로'], [/하천\s*자료|수계|수역\s*자료/, 'wat', '수역·하천'], [/팜맵|농지\s*자료/, 'farm', '농경지'], [/공원/, 'park', '공원·녹지'], [/토양/, 'soil', '토양'], [/현장\s*조사/, 'etc', '현장조사 결과'], [/기타\s*자료/, 'misc', '기타 자료']];
+const cmdNum = (re, s) => { const m = re.exec(s); return m ? parseFloat(m[1].replace(/,/g, '')) : null; };
+const cmdM = (s) => cmdNum(/(\d+(?:\.\d+)?)\s*(?:m|미터)(?![²2a-z])/i, s);
+const cmdArea = (s) => { const ha = cmdNum(/(\d+(?:\.\d+)?)\s*(?:ha|헥타르)/i, s); if (ha != null) return ha * 1e4; return cmdNum(/(\d[\d,]*(?:\.\d+)?)\s*(?:㎡|m2|m²|제곱\s*미터|평방\s*미터)/i, s); };
+const cmdWidth = (s) => cmdNum(/폭\s*(?:이|은|을)?\s*(\d+(?:\.\d+)?)/, s);
+const cmdCode = (s) => { const m = /(CHG-[A-Z]|\b[A-Z]{1,2}\d{1,3}[a-z]?)(?![\w])/.exec(s); return m ? m[1] : null; };
+const cmdLcCodes = (s) => (s.match(/(?<![\d.\w-])\d{3}(?![\d.]|\s*(?:㎡|m|미터|개|ha|%|분|초|장))/g) || []).join(',');
+function cmdClass(s) { const c = CMD_CLASS.filter(([re]) => re.test(s)); return { allow: c.map((x) => x[1]).join(','), name: c.map((x) => x[2]).join('·') }; }
+function cmdLayer(s) { const l = CMD_LAYER.find(([re]) => re.test(s)); return l ? { cat: l[1], name: l[2] } : null; }
+function parseCmdLine(s) {
+  s = s.trim().replace(/\s+/g, ' '); if (!s) return null;
+  const T = (re) => re.test(s), dropU = (o) => { Object.keys(o).forEach((k) => (o[k] == null || o[k] === '' || (typeof o[k] === 'number' && isNaN(o[k]))) && delete o[k]); return o; };
+  const scope = T(/화면|보이는\s*곳|여기만|현재\s*보이/) ? 'view' : null, zoom = T(/0\.5\s*m|정밀|고해상/) ? 18 : null;
+  const cl = cmdClass(s), sens = cmdNum(/민감도\s*(?:를|은|을)?\s*(\d(?:\.\d+)?)/, s);
+  const off = T(/(끄기|꺼\s*줘|끄고|꺼$|끄자|빼\s*줘|빼고|제외|안\s*쓰|쓰지\s*마|사용\s*안|하지\s*마|중지)/);
+  if (T(/^(\?|도움|도움말|명령어|사용법|help|예시)/i)) return { k: 'help' };
+  if (T(/되돌|이전\s*결과|실행\s*취소|undo|원래대로/i)) return { k: 'undo' };
+  if (T(/(shp|셰이프|쉐이프|엑셀|excel|xlsx|pdf|jpg|이미지|도면)/i) && T(/(저장|다운|내보내|받|출력|뽑)/)) return { k: 'export', fmt: T(/엑셀|excel|xlsx/i) ? 'xlsx' : T(/pdf/i) ? 'pdf' : T(/jpg|이미지|도면/i) ? 'jpg' : 'shp' };
+  if (T(/(작업)?기준.*(비우|초기화|모두\s*삭제|전부\s*삭제|다\s*지워|다\s*꺼)/)) return { k: 'clear' };
+  if (T(/(기준|목록).*(보여|보기|확인|열어)/)) return { k: 'list' };
+  if (T(/(같은|동일).*(유형|코드|비오톱).*(합치|합쳐|병합|묶)/)) return { k: 'dissolve', on: !T(/(말|않|안\s*합|해제|풀|끄)/) };
+  const lay = cmdLayer(s), rc = /(\S+?)\s*(?:을|를)\s*(\S+?)\s*(?:으로|로)\s*(?:바꿔|바꾸|변경|고쳐|수정)/.exec(s);
+  let op = null;
+  if (T(/스냅|(경계|경계선)\S*\s*(?:을|를)?\s*\S*\s*(맞추|맞게|맞춰|맞춤|붙|다듬|옮기|옮겨|조정|보정)|영상.*(경계|윤곽).*(따라|대로)/)) op = 'imgsnap';
+  else if (lay && T(/(나누|나눠|나눔|쪼개|분할|자르|잘라)/)) op = 'split';
+  else if (rc && !T(/영상|달라|변화/)) op = 'recode';
+  else if (T(/(달라|변화|변한|바뀐|변경된|질감|벌채|개간|훼손|새로\s*생긴)/)) op = 'imgchange';
+  else if (T(/임도|산길|숲길|도로/) && T(/(노선|중심선|라인|선\s*자료|선형|선으로)/) && !T(/영상/)) op = 'linecut';
+  else if (T(/임도|산길|숲길/)) op = 'imgroad';
+  else if (T(/묘|무덤|분묘|(점|포인트).*(모여|군집|몰려)/)) op = 'cluster';
+  else if (T(/(합치|합쳐|흡수|없애|없에|지워|정리|병합)/) && T(/폭|좁은|가는|길쭉/)) op = 'absorb';
+  else if (T(/(합치|합쳐|흡수|없애|정리|병합|지워)/) && cmdArea(s) != null) op = 'minarea';
+  else if (lay && (T(/(따라|따르|대로|따서|경계로|겹치|덮어|바꿔|넣어)/) || cmdCode(s))) op = 'replace';
+  if (op && off) return { k: 'off', op };
+  if (!op) return T(/(실행|도출|돌려|적용|시작|run|go)/i) ? { k: 'run' } : { k: 'unknown', s };
+  const p = {}; let desc = '';
+  if (op === 'imgsnap') { Object.assign(p, { band: cmdWidth(s) ?? cmdM(s), sens, minArea: cmdArea(s), allow: cl.allow, scope, zoom }); desc = `경계 둘레 ${p.band || '기본'} m 안에서 영상의 색·질감 경계를 따라 이웃 폴리곤과의 경계선을 옮김${cl.name ? ` (${cl.name} 폴리곤 경계만)` : ''}`; }
+  if (op === 'imgchange') { Object.assign(p, { sens, minArea: cmdArea(s), allow: cl.allow, scope, zoom }); desc = `영상에서 색·질감이 달라진 부분을 잘라 새 폴리곤으로 넣음${cl.name ? ` (${cl.name} 안만)` : ''}`; }
+  if (op === 'imgroad') { Object.assign(p, { allow: cl.allow, sens, maxWidth: cmdWidth(s), minLen: cmdNum(/길이\s*(\d+(?:\.\d+)?)/, s), minArea: cmdArea(s), code: cmdCode(s), scope, zoom }); desc = `영상에서 밝고 길쭉한 임도를 찾아 ${cl.name || '산림'} 폴리곤을 잘라 넣음(${p.code || 'B12'})`; }
+  if (op === 'linecut') { Object.assign(p, { width: cmdWidth(s) ?? cmdM(s), allow: cl.allow, code: cmdCode(s) || 'B12', name: '임도' }); desc = `도로·교통 탭의 선 자료를 폭 ${p.width || 4} m로 넓혀 경계를 따서 ${p.code}로 넣음`; }
+  if (op === 'cluster') { const grave = T(/묘|무덤|분묘/); Object.assign(p, { minN: cmdNum(/(\d+)\s*개/, s), dist: cmdNum(/(\d+(?:\.\d+)?)\s*(?:m|미터)\s*(?:안|이내|거리|간격|안쪽)/, s) ?? cmdM(s), code: cmdCode(s) || (grave ? 'F22' : null), name: grave ? '묘지' : null, filt: grave ? '묘' : null, allow: cl.allow }); desc = `현장조사 점이 ${p.minN || 3}개 이상 모인 곳을 새 경계로 그려 ${p.code || '지정 유형'}로 넣음`; }
+  if (op === 'recode') { const fc = cmdClass(rc[1]); Object.assign(p, { from: fc.allow || rc[1].replace(/(은|는|이|가)$/, ''), code: rc[2] }); desc = `값이 ${p.from}(으)로 시작하는 폴리곤의 유형을 ${p.code}(으)로 바꿈`; }
+  if (op === 'absorb') { Object.assign(p, { tgt: cmdLcCodes(s) || cmdCode(s) || (T(/도로/) ? '154,도로' : ''), maxWidth: cmdWidth(s) ?? cmdM(s), maxArea: cmdArea(s), nbr: cl.allow, surround: 50, chk: true }); desc = `폭 ${p.maxWidth || '-'} m 미만${p.tgt ? `인 ${p.tgt}` : ''} 폴리곤을 둘러싼 ${cl.name || '이웃'} 폴리곤에 합침`; }
+  if (op === 'minarea') { p.maxArea = cmdArea(s); desc = `${fmt(p.maxArea)}㎡ 미만 조각을 이웃에 합침`; }
+  if (op === 'replace') { Object.assign(p, { layerCat: lay.cat, filt: cmdLcCodes(s) || (lay.cat === 'lc' && T(/도로/) ? '154' : ''), minWidth: cmdNum(/폭\s*(\d+(?:\.\d+)?)\s*m?\s*(?:이상|넘|초과)/, s), minArea: cmdArea(s), code: cmdCode(s), allow: cl.allow }); desc = `${lay.name}${p.filt ? ` ${p.filt}` : ''} 폴리곤 모양대로 경계를 따서 ${p.code || '자료 값 그대로'}로 넣음`; }
+  if (op === 'split') { Object.assign(p, { layerCat: lay.cat, filt: cmdLcCodes(s), minArea: cmdArea(s), allow: cl.allow }); desc = `${lay.name} 경계로 ${cl.name || '모든'} 폴리곤을 나눔(값 유지, 유형은 규칙이 다시 판정)`; }
+  if (sens != null) desc += ` · 민감도 ${sens}`; if (scope) desc += ' · 지금 화면 안만'; if (zoom) desc += ' · 0.5 m 영상';
+  return { k: 'crit', op, p: dropU(p), desc, src: s };
+}
+function applyCmdCrit(o, a) {
+  o.criteria = o.criteria || [];
+  const sameKey = (c) => c.op === a.op && (['imgsnap', 'imgchange', 'imgroad', 'minarea', 'linecut', 'cluster'].includes(a.op) || (a.op === 'replace' || a.op === 'split' ? (c.p || {}).layerCat === a.p.layerCat && String((c.p || {}).filt || '') === String(a.p.filt || '') : a.op === 'recode' ? (c.p || {}).from === a.p.from : false));
+  let c = o.criteria.find(sameKey);
+  if (c) { c.on = true; c.p = { ...CRIT_NEW[c.op](), ...(c.p || {}), ...a.p }; c.text = (c.text ? c.text + ' / ' : '') + '명령: ' + a.src; return '기존 기준 “' + c.title + '” 수정'; }
+  c = { id: critSeq(), on: true, op: a.op, title: a.src.length > 36 ? a.src.slice(0, 35) + '…' : a.src, text: '명령창: ' + a.src, p: { ...CRIT_NEW[a.op](), ...a.p } };
+  const i = o.criteria.findIndex((x) => x.op === 'memo'); o.criteria.splice(i < 0 ? o.criteria.length : i, 0, c);
+  return '새 기준 추가';
+}
+const CMD_EX = ['영상 경계선에 맞춰 경계 옮기기 15m', '산림 안 달라진 부분 따기 민감도 4', '임도 따기 폭 10m 이하', '임도 노선 4m로 잘라 B12로', '묘지 점 3개 이상 15m 안 모이면 F22', '토지피복 154 큰 도로 폭 8m 이상은 B11로', '임상도 경계로 산림 나누기', '300㎡ 미만 조각 합치기', 'E11을 E12로 바꿔', '같은 유형 합치기', '영상 변화 끄기', '실행', '되돌리기', 'SHP 저장'];
+function cmdLog(html, cls) { const L = $('#cmdLog'); if (!L) return; L.classList.remove('hidden'); const d = document.createElement('div'); d.className = 'cl ' + (cls || ''); d.innerHTML = html; L.appendChild(d); while (L.children.length > 40) L.firstChild.remove(); L.scrollTop = L.scrollHeight; return d; }
+function cmdHelp() {
+  cmdLog(`<b>명령 예시</b> — 누르면 입력칸에 들어감. 여러 명령은 줄바꿈이나 ; 로 나눔. 기준을 바꾸는 명령은 끝나면 바로 결과 도출까지 함.<div class="cx">${CMD_EX.map((e) => `<span data-ex="${esc(e)}">${esc(e)}</span>`).join('')}</div><span style="opacity:.75">숫자 단위: m(폭·거리), ㎡·ha(면적), 개(점 수), 민감도 1~5. 값: 산림·초지·농경지·나지·시가지·수역·습지, 토지피복 3자리 코드(154 등), 유형 코드(B11·E12 등). “화면 안만”을 붙이면 지금 보이는 곳만 판독함.</span>`, 'help');
+  $$('#cmdLog [data-ex]').forEach((x) => x.onclick = () => { const i = $('#cmdIn'); i.value = (i.value.trim() ? i.value.trim() + '\n' : '') + x.dataset.ex; i.focus(); cmdFit(); });
+}
+function cmdFit() { const i = $('#cmdIn'); i.style.height = 'auto'; i.style.height = Math.min(120, i.scrollHeight) + 'px'; }
+const CMD_HIST = []; let cmdHi = -1;
+async function cmdExec(text) {
+  const o = curOut(); if (!o) return;
+  const lines = String(text).split(/\n|;|\s그리고\s|(?<!\d)\.(?!\d)/).map((x) => x.trim()).filter(Boolean);
+  if (!lines.length) return;
+  CMD_HIST.push(text); cmdHi = CMD_HIST.length;
+  const acts = lines.map(parseCmdLine).filter(Boolean);
+  const box = cmdLog(`<div class="cu">› ${esc(text).replace(/\n/g, '<br>› ')}</div>`);
+  const say = (h, c) => { const d = document.createElement('div'); d.className = 'ca ' + (c || ''); d.innerHTML = h; box.appendChild(d); $('#cmdLog').scrollTop = 1e9; };
+  if (acts.some((a) => a.k === 'help')) { cmdHelp(); return; }
+  if (acts.some((a) => a.k === 'list')) { critDialog(o); say('작업기준 목록을 엶'); }
+  if (acts.some((a) => a.k === 'undo')) { say(undoOut(o) ? '직전 상태(작업기준·결과)로 되돌림' : '되돌릴 이전 상태가 없음', 'w'); return; }
+  const changes = acts.filter((a) => ['crit', 'off', 'clear', 'dissolve'].includes(a.k));
+  if (changes.length) pushHist(o);
+  for (const a of acts) {
+    if (a.k === 'unknown') say(`알아듣지 못함: “${esc(a.s)}” — <a href="#" data-h>명령 예시 보기</a>`, 'w');
+    if (a.k === 'clear') { (o.criteria || []).forEach((c) => { if (c.op !== 'memo') c.on = false; }); say('작업기준을 모두 끔(목록은 남김)'); }
+    if (a.k === 'dissolve') { o.dissolve = a.on; say(a.on ? '판정 뒤 같은 유형끼리 맞닿은 폴리곤을 합침' : '같은 유형 합치기를 끔'); }
+    if (a.k === 'off') { const cs = (o.criteria || []).filter((c) => c.op === a.op && c.on); cs.forEach((c) => c.on = false); say(cs.length ? `“${cs.map((c) => esc(c.title)).join('”, “')}” 끔` : `켜진 “${esc(CRIT_OPS[a.op].name)}” 기준이 없음`, cs.length ? '' : 'w'); }
+    if (a.k === 'crit') say(`<b>${esc(CRIT_OPS[a.op].name)}</b> — ${esc(a.desc)} <span style="opacity:.7">(${applyCmdCrit(o, a)})</span>`);
+  }
+  $$('[data-h]', box).forEach((x) => x.onclick = (e) => { e.preventDefault(); cmdHelp(); });
+  saveOutputs(); renderAll();
+  const run = changes.length || acts.some((a) => a.k === 'run'), exp = acts.find((a) => a.k === 'export');
+  if (run) {
+    const base = layerById(o.base || defaultBase(o));
+    if (!base) { say('기준 경계 SHP가 없음 — 왼쪽 “과거지도” 탭에 과거 비오톱 SHP를 올린 뒤 “실행”을 입력', 'w'); return; }
+    if (o.run && o.run.state === 'run') { say('이미 도출 중 — 끝난 뒤 “실행”을 다시 입력', 'w'); return; }
+    say(`<b>${esc(o.short || o.name)}</b> 결과 도출 시작 — 기준 경계 ${esc(base.name)} · 지도에서 진행 과정을 볼 수 있음`);
+    const before = S.results[o.id];
+    await runOutput(o, { noHist: true });
+    const r = S.results[o.id];
+    if (!r || r === before) { say('도출이 끝나지 않았음(취소·오류) — 오류 창의 내용을 확인', 'w'); return; }
+    const ch = r.meta ? Array.from(r.meta.src).filter((v) => v < 0).length : 0, mv = r.meta && r.meta.mv ? Array.from(r.meta.mv).filter(Boolean).length : 0;
+    say(`<b>완료</b> — 결과 폴리곤 ${fmt(r.n)}개 · 잘라 넣은 폴리곤 ${fmt(ch)}개(노란 테두리) · 경계선이 옮겨진 폴리곤 ${fmt(mv)}개(청록 테두리)${r.chkN ? ` · 검토 필요 ${fmt(r.chkN)}개` : ''}` + (r.shapeLog && r.shapeLog.length ? '<br>' + r.shapeLog.map((l) => `· ${esc(l.title)} — ${esc(l.msg || '')}`).join('<br>') : '') + '<br><span style="opacity:.75">마음에 안 들면 “되돌리기”, 받으려면 “SHP 저장”</span>', 'ok');
+  }
+  if (exp) {
+    if (!S.results[o.id]) { say('저장할 결과가 없음 — 먼저 “실행”', 'w'); return; }
+    const fake = { innerHTML: '', disabled: false }; await doExport(o, exp.fmt, fake); say(`${exp.fmt.toUpperCase()} 파일을 내려받음`, 'ok');
+  }
+}
+function cmdInit() {
+  const w = $('#mapwrap'); if (!w || $('#cmd')) return;
+  const d = document.createElement('div'); d.id = 'cmd';
+  d.innerHTML = `<div id="cmdLog" class="hidden"></div><div class="cmdrow"><span class="cmdlab" title="사이트 안에서 해석하는 명령(인터넷 AI·API 키 없이 작동)">명령</span><textarea id="cmdIn" rows="1" placeholder="예: 영상 경계선에 맞춰 경계 옮기기 15m  ·  임도 따기  ·  300㎡ 미만 조각 합치기  (Enter 실행, Shift+Enter 줄바꿈)"></textarea><button class="btn pri" id="cmdGo">실행</button><button class="btn" id="cmdUndo" title="직전 상태로 되돌리기">↶</button><button class="btn" id="cmdQ" title="명령 예시">?</button><button class="btn" id="cmdX" title="기록 접기">▾</button></div>`;
+  w.appendChild(d);
+  const i = $('#cmdIn');
+  const go = () => { const t = i.value.trim(); if (!t) return; i.value = ''; cmdFit(); cmdExec(t).catch((e) => { console.error(e); cmdLog('명령 처리 중 오류: ' + esc(e.message || String(e)), 'w'); }); };
+  i.onkeydown = (e) => {
+    if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); go(); }
+    else if (e.key === 'ArrowUp' && !i.value.includes('\n') && CMD_HIST.length) { e.preventDefault(); cmdHi = Math.max(0, cmdHi - 1); i.value = CMD_HIST[cmdHi] || ''; cmdFit(); }
+    else if (e.key === 'ArrowDown' && !i.value.includes('\n') && CMD_HIST.length) { e.preventDefault(); cmdHi = Math.min(CMD_HIST.length, cmdHi + 1); i.value = CMD_HIST[cmdHi] || ''; cmdFit(); }
+  };
+  i.oninput = cmdFit;
+  $('#cmdGo').onclick = go;
+  $('#cmdUndo').onclick = () => { const o = curOut(); cmdLog(o && undoOut(o) ? '직전 상태(작업기준·결과)로 되돌림' : '되돌릴 이전 상태가 없음'); };
+  $('#cmdQ').onclick = cmdHelp;
+  $('#cmdX').onclick = () => { const L = $('#cmdLog'); L.classList.toggle('hidden'); $('#cmdX').textContent = L.classList.contains('hidden') ? '▴' : '▾'; };
+}
+
 // ---------- 시작 ----------
 async function restore() {
   let saved = [];
@@ -2770,6 +3166,7 @@ async function restore() {
 }
 (async function init() {
   chipState();
+  cmdInit();
   if (!S.basemap) S.basemap = vwKey() ? 'sat' : 's2c-2016';
   renderAll();
   await setBasemap(S.basemap);
@@ -3219,7 +3616,7 @@ body.gbe-picking, body.gbe-picking *{cursor:crosshair !important}
   const SUGGEST = ['상단바 배경을 짙은 남색으로 바꿔줘', '“불러오기” 단계 이름을 “데이터 입력”으로 바꿔줘', '첫 화면에 “11월 점검 안내” 공지 배너를 띄워줘', '오른쪽 패널을 조금 더 넓게 해줘'];
 
   const SYS_STATIC = `당신은 GeoBound 웹사이트 안에 내장된 “사이트 편집 도우미”임. 대화 상대는 이 사이트의 관리자이며, 화면·문구·디자인·기능을 바꿔 달라고 요청함.
-사이트: 도시생태현황지도 제작 — 왼쪽 22개 주제 탭(#rail·#lpanel, 맨 위는 사이트 안내)에 기초자료 SHP를 올리고, 오른쪽(#rpanel)에서 최종 성과품 하나를 버튼으로 골라 경계 작업기준(o.criteria)으로 경계를 고친 뒤 규칙으로 유형을 도출해 SHP·JPG·PDF·Excel로 내보내는 OpenLayers 기반 단일 index.html. 상단 #stepper는 단계별 진행 막대. 경계 편집 도구는 없음(의도된 설계). 편집기 패널(#gbe)은 수정 대상이 아님.
+사이트: 도시생태현황지도 제작 — 왼쪽 22개 주제 탭(#rail·#lpanel, 맨 위는 사이트 안내)에 기초자료 SHP를 올리고, 오른쪽(#rpanel)에서 최종 성과품 하나를 버튼으로 골라 경계 작업기준(o.criteria)으로 경계를 고친 뒤 규칙으로 유형을 도출해 SHP·JPG·PDF·Excel로 내보내는 OpenLayers 기반 단일 index.html. 상단 #stepper는 단계별 진행 막대. 경계 편집 도구는 없음(의도된 설계). 지도 아래 명령창(#cmd, cmdExec·parseCmdLine)은 한국어 명령을 작업기준으로 바꿔 자동 도출함(AI 없이 규칙 해석). 작업기준 방식에는 영상 경계선 맞추기(imgsnap→워커 transfer)·다른 자료 경계로 나누기(split)·유형 코드 바꾸기(recode)도 있음. 편집기 패널(#gbe)은 수정 대상이 아님.
 
 수정 방식은 두 가지임.
 1) 빠른 수정(사이트 설정) — set_text(화면 글자·툴팁·숨김), set_design(색·글꼴 CSS 변수, 브라우저 탭 제목), set_css(덧붙이는 CSS), set_script(페이지가 열릴 때마다 실행되는 사용자 JS). 바로 화면에 반영되고 되돌리기 쉬움. 대부분의 요청은 이것으로 해결할 것.
