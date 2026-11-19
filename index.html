@@ -1571,7 +1571,7 @@ const CRIT_DEFAULTS = {
   biotope: [
     { id: 'c1', on: true, op: 'cluster', title: '묘지 경계', text: '묘지 포인트가 3개 이상 모여 있고 정사영상에서 노출된 땅(초지·나지)처럼 보일 때 묘지 경계를 그림. 영상 판독으로 최종 확인.', p: { layerCat: 'etc', layer: '', filt: '묘', minN: 3, dist: 15, buf: 3, allow: '3,4,6,E,F,H,림,초지,나지', minArea: 20, code: 'F22', name: '묘지', chk: true } },
     { id: 'c2', on: true, op: 'replace', title: '큰 도로는 토지피복 경계', text: '폭이 넓은 도로(대로·국도 등)는 토지피복지도의 도로 경계를 그대로 따름.', p: { layerCat: 'lc', layer: '', filt: '154', minWidth: 8, minArea: 0, code: 'B11', name: '도로', chk: false } },
-    { id: 'c3', on: true, op: 'imgroad', title: '임도는 영상에서 보이는 대로 따기', text: '산에 있는 도로(임도)는 정사영상에서 눈으로 보이는 곳을 따서 산림과 다른 폴리곤으로 분리함. 나무에 가린 구간은 영상 판독으로 보완.', p: { allow: '3,E,림', scope: 'all', zoom: 18, sens: 2, maxWidth: 12, minLen: 40, minArea: 60, code: 'B12', name: '임도', chk: true } },
+    { id: 'c3', on: true, op: 'imgroad', title: '임도는 영상에서 보이는 대로 따기', text: '산에 있는 도로(임도)는 정사영상에서 눈으로 보이는 곳을 따서 산림과 다른 폴리곤으로 분리함. 나무에 가린 구간은 영상 판독으로 보완. 숲 가장자리(농경지·시가지 등)에서 15 m 이상 떨어진 숲 안쪽 임도만 따고, 같은 유형은 한 가지 폭의 매끄러운 곡선으로 그림.', p: { allow: '3,E,림', scope: 'all', zoom: 18, sens: 2, maxWidth: 12, minLen: 40, minArea: 60, code: 'B12', name: '임도', chk: true, edge: 15 } },
     { id: 'c3b', on: false, op: 'linecut', title: '임도 노선 자료로 따기', text: '산림청 임도 노선(선) SHP가 있으면 폭만큼 넓혀 경계를 따는 쪽이 더 정확함. 자료를 “도로·교통” 탭에 올리고 켬.', p: { layerCat: 'road', layer: '', filt: '', width: 4, allow: '3,E,림', code: 'B12', name: '임도', chk: false } },
     { id: 'c7', on: true, op: 'imgsnap', title: '영상 경계선에 맞춰 경계 옮기기', text: '과거지도 경계가 최신 정사영상의 색·질감 경계와 어긋난 곳은, 경계 둘레(기본 12 m) 안에서 영상에 보이는 경계를 따라 이웃 폴리곤과의 경계선을 옮김.', p: { allow: '', scope: 'all', zoom: 17, band: 12, sens: 3, minArea: 30, chk: true } },
     { id: 'c6', on: true, op: 'imgchange', title: '영상에서 달라진 부분 따기', text: '정사영상에서 색상이나 질감이 주변과 뚜렷이 달라진 부분(벌채·개간·나지·새 시설 등)은 과거지도 경계를 잘라 새 폴리곤으로 분리하고, 유형은 다른 기초자료(토지피복 등)를 참고해 정함.', p: { allow: '', scope: 'all', zoom: 17, sens: 3, minArea: 300, edge: 3, chk: true } },
@@ -1886,6 +1886,10 @@ function loadOutputs() {
     }
     LS.set('gb2.critver', 3); LS.set('gb2.outputs', out.map(({ run, exported, ...o }) => o));
   }
+  if (LS.get('gb2.critver', 1) < 5) { // 5판: 임도는 숲 가장자리에서 15 m 떨어진 곳만
+    out.forEach((o) => (o.criteria || []).forEach((c) => { if (c.op === 'imgroad') c.p = { ...(c.p || {}), edge: 15 }; }));
+    LS.set('gb2.critver', 5); LS.set('gb2.outputs', out.map(({ run, exported, ...o }) => o));
+  }
   if (LS.get('gb2.critver', 1) < 4) { // 4판: 영상 경계선에 맞춰 경계 옮기기 추가
     const b = out.find((o) => o.id === 'biotope');
     if (b && !b.criteria.some((c) => c.op === 'imgsnap')) { const d = CRIT_DEFAULTS.biotope.find((c) => c.op === 'imgsnap'); const i = b.criteria.findIndex((c) => c.op === 'imgchange' || c.op === 'minarea' || c.op === 'memo'); b.criteria.splice(i < 0 ? b.criteria.length : i, 0, JSON.parse(JSON.stringify(d))); }
@@ -2065,7 +2069,7 @@ const CRIT_NEW = {
   replace: () => ({ layerCat: 'lc', layer: '', filt: '', minWidth: 0, minArea: 0, code: '', name: '', chk: false }),
   absorb: () => ({ tgt: '', maxWidth: 5, maxArea: 0, nbr: '', surround: 50, chk: true }),
   minarea: () => ({ maxArea: 100 }),
-  imgroad: () => ({ allow: '3,E,림', scope: 'all', zoom: 18, sens: 2, maxWidth: 12, minLen: 40, minArea: 60, edge: 10, width: 0, code: 'B12', name: '임도', chk: true }),
+  imgroad: () => ({ allow: '3,E,림', scope: 'all', zoom: 18, sens: 2, maxWidth: 12, minLen: 40, minArea: 60, edge: 15, width: 0, code: 'B12', name: '임도', chk: true }),
   linecut: () => ({ layerCat: 'road', layer: '', filt: '', width: 4, allow: '3,E,림', code: 'B12', name: '임도', chk: false }),
   imgchange: () => ({ allow: '', scope: 'all', zoom: 17, sens: 3, minArea: 300, edge: 3, chk: true }),
   imgsnap: () => ({ allow: '', scope: 'all', zoom: 17, band: 12, sens: 3, minArea: 30, chk: true }),
@@ -2218,7 +2222,7 @@ function guideHTML() {
 
 
 // ---------- 실시간 진행 표시(지도 위) ----------
-const APP_VER = '2026.11.19-4';
+const APP_VER = '2026.11.19-5';
 const LIVE = { src: new ol.source.Vector({ wrapX: false }) };
 LIVE.styles = {
   tgt: new ol.style.Style({ stroke: new ol.style.Stroke({ color: 'rgba(255,255,255,.9)', width: 1.2, lineDash: [5, 4] }) }),
@@ -2319,7 +2323,7 @@ async function imgRoadExtract(o, c, base) {
   for (const [x, y] of tiles.values()) { const k = Math.floor(x / BS) + ',' + Math.floor(y / BS); if (!blocks.has(k)) blocks.set(k, [Math.floor(x / BS), Math.floor(y / BS)]); }
   const lines = [], hws = []; let done = 0, nb = 0, fetched = 0;
   const gres = res * groundScale(tiles, tm); // 웹메르카토르 화소 → 실제 지상 거리(m)
-  const edgePx = Math.max(0, (p.edge == null ? 10 : +p.edge) / gres);
+  const edgePx = Math.max(0, (p.edge == null ? 15 : +p.edge) / gres);
   const hw = Math.max(1, (+p.maxWidth || 12) / 2 / gres), minLen = (+p.minLen || 40) / gres, minA = (+p.minArea || 60) / gres / gres, sens = +p.sens || 2;
   for (const [bx, by] of blocks.values()) {
     if (o.run && o.run.stop) throw { cancelled: true };
