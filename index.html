@@ -1950,6 +1950,7 @@ function renderOutputs() {
     <label class="f">규칙에 쓰인 기초자료 <span style="font-weight:400">(초록=있음, 주황=없음 — 없으면 해당 조건은 건너뜀)</span></label>
     <div class="need">${p.need.map((k) => { const c = DATA_CATS.find((x) => x.key === k); return `<span class="${hasKey(k) ? 'y' : 'n'}" data-cat="${c.id}">${hasKey(k) ? '✓' : '＋'} ${esc(c.name)}</span>`; }).join('') || '<span>없음</span>'}</div>
     <div class="row" style="margin-top:12px"><button class="btn pri block" id="oRun" ${!bases.length || run ? 'disabled' : ''}>${run ? `도출 중 ${Math.round(o.run.pct)}%` : res ? (p.stale ? '⚠ 기준이 바뀜 — 결과 다시 도출' : '결과 다시 도출') : '이 지도로 결과 도출'}</button>${run ? '<button class="btn" id="oStop">중지</button>' : ''}</div>
+    ${res ? `<div class="row" style="margin-top:6px"><button class="btn pri block" data-dl="shp" style="background:#0b6bcb;border-color:#0b6bcb">⬇ 고친 경계 SHP 내려받기 (${fmt(res.n)}개 폴리곤)</button></div>` : ''}
     <div class="row" style="margin-top:6px"><button class="btn" id="oRules" style="flex:1">유형 판정 규칙 (${o.rules.length}개)</button>${res ? `<button class="btn" id="oVis" style="flex:1">${res.layer && res.layer.getVisible() ? '결과 숨기기' : '결과 보기'}</button>` : ''}</div>`;
   if (res) {
     const tot = res.stats.reduce((s, x) => s + x.area, 0);
@@ -2143,7 +2144,7 @@ function guideHTML() {
 
 
 // ---------- 실시간 진행 표시(지도 위) ----------
-const APP_VER = '2026.11.18-8';
+const APP_VER = '2026.11.19-1';
 const LIVE = { src: new ol.source.Vector({ wrapX: false }) };
 LIVE.styles = {
   tgt: new ol.style.Style({ stroke: new ol.style.Stroke({ color: 'rgba(255,255,255,.9)', width: 1.2, lineDash: [5, 4] }) }),
@@ -2164,11 +2165,11 @@ function liveClear(keepRoads) { if (keepRoads) LIVE.src.getFeatures().filter((f)
 // 영상 타일이 많으면 시간 안내 후 확인
 function confirmTiles(c, n, z) {
   if (n <= 2500) return Promise.resolve(true);
-  const min = Math.max(1, Math.round(n * 0.12 / 60));
-  return new Promise((res) => modal(`<h3>영상 판독 범위가 넓음</h3><p>“${esc(c.title)}”에 브이월드 영상 타일 <b>${fmt(n)}장</b>(해상도 ${z === 18 ? '약 0.5 m' : '약 1 m'})이 필요함. 인터넷 속도에 따라 <b>약 ${fmt(min)}분 이상</b> 걸릴 수 있음. 진행 중에도 지도에서 구역별 결과를 볼 수 있고 “중지”로 멈출 수 있음.</p>
-    <div class="row" style="justify-content:flex-end;margin-top:12px"><button class="btn" id="ctN">취소</button><button class="btn" id="ctV">지금 화면 안만 판독</button><button class="btn pri" id="ctY">전체 판독 계속</button></div>`, (b) => {
+  const min = Math.max(1, Math.round(n * 0.12 / 60)), inView = c.p && c.p.scope === 'view';
+  return new Promise((res) => modal(`<h3>영상 판독 범위가 넓음</h3><p>“${esc(c.title)}”에 브이월드 영상 타일 <b>${fmt(n)}장</b>(해상도 ${z === 18 ? '약 0.5 m' : '약 1 m'})이 필요함. 인터넷 속도에 따라 <b>약 ${fmt(min)}분 이상</b> 걸릴 수 있음. 진행 중에도 지도에서 구역별 결과를 볼 수 있고 “중지”로 멈출 수 있음.</p>${inView ? '<p style="color:var(--muted)">지금 화면 안만 판독하는 중인데도 넓음 — 빨리 시험하려면 취소하고 지도를 더 확대한 뒤 다시 실행.</p>' : ''}
+    <div class="row" style="justify-content:flex-end;margin-top:12px"><button class="btn" id="ctN">취소</button>${inView ? '' : '<button class="btn" id="ctV">지금 화면 안만 판독</button>'}<button class="btn pri" id="ctY">전체 판독 계속</button></div>`, (b) => {
     $('#ctN', b).onclick = () => { closeModal(); res(false); };
-    $('#ctV', b).onclick = () => { closeModal(); c.p = { ...(c.p || {}), scope: 'view' }; saveOutputs(); res('view'); };
+    if ($('#ctV', b)) $('#ctV', b).onclick = () => { closeModal(); c.p = { ...(c.p || {}), scope: 'view' }; saveOutputs(); res('view'); };
     $('#ctY', b).onclick = () => { closeModal(); res(true); };
   })).then((v) => (v === 'view' ? (() => { throw { retryView: true }; })() : v));
 }
@@ -2691,8 +2692,9 @@ async function runOutput(o, opt) {
       catch (e) {
         if (e && e.retryView && tries++ < 1) continue;
         if (e && e.cancelled) { o.run = null; liveClear(); liveMsg(''); renderAll(); clearTask(e.msg || '중지함'); return; }
-        console.error(e); imgFail.push({ id: c.id, title: c.title, msg: '영상 판독 실패로 건너뜀 — ' + (e.message || String(e)) });
-        toast(`“${c.title}” 영상 판독 실패 — 나머지 기준으로 계속함: ${e.message || e}`, 'warn');
+        const em = (e && (e.message || e.msg)) || (e && e.retryView ? '지금 화면도 영상 타일이 너무 많음 — 지도를 더 확대한 뒤 다시 실행' : String(e));
+        console.error(e); imgFail.push({ id: c.id, title: c.title, msg: '영상 판독 실패로 건너뜀 — ' + em });
+        toast(`“${c.title}” 영상 판독 실패 — 나머지 기준으로 계속함: ${em}`, 'warn');
         break;
       }
     }
@@ -3166,17 +3168,25 @@ async function cmdExec(text) {
     const r = S.results[o.id];
     if (!r || r === before) { say('도출이 끝나지 않았음(취소·오류) — 오류 창의 내용을 확인', 'w'); return; }
     const ch = r.meta ? Array.from(r.meta.src).filter((v) => v < 0).length : 0, mv = r.meta && r.meta.mv ? Array.from(r.meta.mv).filter(Boolean).length : 0;
-    say(`<b>완료</b> — 결과 폴리곤 ${fmt(r.n)}개 · 잘라 넣은 폴리곤 ${fmt(ch)}개(노란 테두리) · 경계선이 옮겨진 폴리곤 ${fmt(mv)}개(청록 테두리)${r.chkN ? ` · 검토 필요 ${fmt(r.chkN)}개` : ''}` + (r.shapeLog && r.shapeLog.length ? '<br>' + r.shapeLog.map((l) => `· ${esc(l.title)} — ${esc(l.msg || '')}`).join('<br>') : '') + '<br><span style="opacity:.75">마음에 안 들면 “되돌리기”, 받으려면 “SHP 저장”</span>', 'ok');
+    say(`<b>완료</b> — 결과 폴리곤 ${fmt(r.n)}개 · 잘라 넣은 폴리곤 ${fmt(ch)}개(노란 테두리) · 경계선이 옮겨진 폴리곤 ${fmt(mv)}개(청록 테두리)${r.chkN ? ` · 검토 필요 ${fmt(r.chkN)}개` : ''}` + (r.shapeLog && r.shapeLog.length ? '<br>' + r.shapeLog.map((l) => `· ${esc(l.title)} — ${esc(l.msg || '')}`).join('<br>') : '') + '<br><button class="btn pri" data-shp style="margin-top:6px;background:#0b6bcb;border-color:#0b6bcb;color:#fff">⬇ 이 결과를 SHP로 내려받기</button> <span style="opacity:.75">마음에 안 들면 “되돌리기”</span>', 'ok');
+    $$('[data-shp]', box).forEach((x) => x.onclick = () => cmdSaveShp(x));
   }
   if (exp) {
     if (!S.results[o.id]) { say('저장할 결과가 없음 — 먼저 “실행”', 'w'); return; }
     const fake = { innerHTML: '', disabled: false }; await doExport(o, exp.fmt, fake); say(`${exp.fmt.toUpperCase()} 파일을 내려받음`, 'ok');
   }
 }
+async function cmdSaveShp(btn) {
+  const o = curOut(); if (!o) return;
+  if (!S.results[o.id]) { cmdLog('내려받을 결과가 없음 — 먼저 명령을 실행하거나 “실행”을 입력'); return; }
+  const b = btn || { innerHTML: '', disabled: false }, keep = b.innerHTML;
+  await doExport(o, 'shp', b); if (btn) { btn.innerHTML = keep; btn.disabled = false; }
+  cmdLog(`<b>${esc(o.short || o.name)}</b> 고친 경계 SHP(ZIP)를 내려받음 — 결과 폴리곤 ${fmt(S.results[o.id].n)}개`, 'ok');
+}
 function cmdInit() {
   const w = $('#mapwrap'); if (!w || $('#cmd')) return;
   const d = document.createElement('div'); d.id = 'cmd';
-  d.innerHTML = `<div id="cmdLog" class="hidden"></div><div class="cmdrow"><span class="cmdlab" title="사이트 안에서 해석하는 명령(인터넷 AI·API 키 없이 작동)">명령</span><textarea id="cmdIn" rows="1" placeholder="예: 영상 경계선에 맞춰 경계 옮기기 15m  ·  임도 따기  ·  300㎡ 미만 조각 합치기  (Enter 실행, Shift+Enter 줄바꿈)"></textarea><button class="btn pri" id="cmdGo">실행</button><button class="btn" id="cmdUndo" title="직전 상태로 되돌리기">↶</button><button class="btn" id="cmdQ" title="명령 예시">?</button><button class="btn" id="cmdX" title="기록 접기">▾</button></div>`;
+  d.innerHTML = `<div id="cmdLog" class="hidden"></div><div class="cmdrow"><span class="cmdlab" title="사이트 안에서 해석하는 명령(인터넷 AI·API 키 없이 작동)">명령</span><textarea id="cmdIn" rows="1" placeholder="예: 영상 경계선에 맞춰 경계 옮기기 15m  ·  임도 따기  ·  300㎡ 미만 조각 합치기  (Enter 실행, Shift+Enter 줄바꿈)"></textarea><button class="btn pri" id="cmdGo">실행</button><button class="btn" id="cmdShp" title="지금 결과를 SHP(ZIP)로 내려받기" style="font-weight:700">⬇ SHP</button><button class="btn" id="cmdUndo" title="직전 상태로 되돌리기">↶</button><button class="btn" id="cmdQ" title="명령 예시">?</button><button class="btn" id="cmdX" title="기록 접기">▾</button></div>`;
   w.appendChild(d);
   const i = $('#cmdIn');
   const go = () => { const t = i.value.trim(); if (!t) return; i.value = ''; cmdFit(); cmdExec(t).catch((e) => { console.error(e); cmdLog('명령 처리 중 오류: ' + esc(e.message || String(e)), 'w'); }); };
@@ -3189,6 +3199,7 @@ function cmdInit() {
   $('#cmdGo').onclick = go;
   $('#cmdUndo').onclick = () => { const o = curOut(); cmdLog(o && undoOut(o) ? '직전 상태(작업기준·결과)로 되돌림' : '되돌릴 이전 상태가 없음'); };
   $('#cmdQ').onclick = cmdHelp;
+  $('#cmdShp').onclick = () => cmdSaveShp($('#cmdShp'));
   $('#cmdX').onclick = () => { const L = $('#cmdLog'); L.classList.toggle('hidden'); $('#cmdX').textContent = L.classList.contains('hidden') ? '▴' : '▾'; };
 }
 
