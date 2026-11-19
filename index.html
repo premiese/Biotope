@@ -315,6 +315,10 @@ button,input,select,textarea{font:inherit;color:inherit}
 .legend td.n{text-align:right;font-family:var(--mono)}
 .legend i{display:inline-block;width:12px;height:12px;border-radius:3px;vertical-align:-2px;margin-right:5px;border:1px solid rgba(0,0,0,.15)}
 .dl{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-top:8px}
+.areabox{margin-top:6px;border:1.5px solid #0b6bcb;border-radius:10px;padding:8px 9px;background:#f3f8fe;display:flex;flex-direction:column;gap:6px;font-size:12px}
+.areabox .ah{color:#0b4f96}
+.areabox .achips{display:flex;flex-wrap:wrap;gap:4px}.areabox .achips span{background:#0b6bcb;color:#fff;border-radius:6px;padding:2px 4px 2px 8px;font-size:12px;font-weight:600}.areabox .achips i{font-style:normal;margin-left:5px;cursor:pointer;opacity:.8;padding:0 3px}.areabox .achips em{color:var(--muted)}
+.areabox small{color:var(--muted)}
 .dlbar{position:sticky;bottom:0;z-index:3;background:#fff;border-top:2px solid var(--acc,#1f7a4d);padding:10px 14px 12px;box-shadow:0 -6px 16px rgba(0,0,0,.08);margin-top:12px}
 .dlbar .dlh{display:flex;flex-direction:column;gap:2px}.dlbar .dlh b{font-size:14px}.dlbar .dlh span{font-size:11.5px;color:var(--muted)}
 .dlbar .dl .btn.pend{opacity:.78;border-style:dashed}
@@ -588,6 +592,7 @@ self.onmessage = async (e) => {
     if (m.type === 'load') return await load(m);
     if (m.type === 'analyze') return await analyze(m);
     if (m.type === 'roadvec') return await roadVec(m);
+    if (m.type === 'area') return areaLayer(m);
   } catch (err) {
     post({ type: 'error', job: m.job, message: (err && err.message) || String(err) });
   }
@@ -1348,6 +1353,18 @@ async function dissolveSame(res, job, p0, p1) {
 }
 
 // ---------- 영상에서 찾은 임도 화소(직사각형 묶음) → 작업 좌표계 폴리곤 ----------
+// 작업 구역(도엽·읍면동) 폴리곤을 작업 좌표계 레이어로 등록 — 결과 도출 때 이 안의 폴리곤만 남김
+function areaLayer(m) {
+  J();
+  const tr = proj4('EPSG:4326', WORK_CRS), X = { B: null, items: [], log: [] };
+  const ring = (r) => { const a = r.map((q) => { const p = tr.forward([q[0], q[1]]); return XY(p[0], p[1]); }); if (!a[0].equals2D(a[a.length - 1])) a.push(a[0].copy()); return GF.createLinearRing(a); };
+  const ps = [];
+  for (const poly of m.polys) { try { const g = GF.createPolygon(ring(poly[0]), poly.slice(1).map(ring)); ps.push(g.isValid() ? g : g.buffer(0)); } catch (e) { } }
+  const u = polysOnly(unionAll(ps));
+  if (u) for (let i = 0; i < u.getNumGeometries(); i++) X.items.push({ src: -1, g: u.getGeometryN(i), mod: true, dead: false, fc: null, crit: [], chk: [] });
+  const tl = itemsToLayer(X), lay = tl.L; lay.fields = []; lay.cols = []; lay.srcCrs = WORK_CRS; LAYERS.set(m.id, lay);
+  post({ type: 'area', job: m.job, id: m.id, n: lay.n, area: lay.n ? Array.from({ length: lay.n }, (_, i) => featArea(lay, i)).reduce((a, b) => a + b, 0) : 0 });
+}
 async function roadVec(m) {
   J();
   const job = m.job, R = m.rects, cs = m.compStart, nc = cs.length - 1, out = [], lab = [];
@@ -1854,7 +1871,7 @@ function progressOf(o) {
   const s4 = o.exported && o.exported.size ? 100 : 0;
   return { need, s1, s2, s3, s4, all: Math.round(0.2 * s1 + 0.15 * s2 + 0.5 * s3 + 0.15 * s4), baseId, stale: res && res.rulesSig !== rulesSig(o) };
 }
-const rulesSig = (o) => JSON.stringify(o.rules) + '|' + (o.samples || 100) + '|' + (o.clip || '') + '|' + JSON.stringify((o.criteria || []).filter((c) => c.on && c.op !== 'memo')) + '|' + !!o.dissolve;
+const rulesSig = (o) => JSON.stringify(o.rules) + '|' + (o.samples || 100) + '|' + (o.clip || '') + '|' + JSON.stringify(o.area || null) + '|' + JSON.stringify((o.criteria || []).filter((c) => c.on && c.op !== 'memo')) + '|' + !!o.dissolve;
 
 // ---------- 화면 그리기 ----------
 function renderAll() { renderRail(); renderPanel(); renderOutputs(); renderStepper(); }
@@ -1947,36 +1964,38 @@ function renderOutputs() {
     <div class="crit">${crit.length ? crit.map((c) => `<label class="ci ${c.on ? '' : 'off'}"><input type="checkbox" data-ct="${c.id}" ${c.on ? 'checked' : ''}><span><b>${esc(c.title || '(제목 없음)')}</b><em>${esc((CRIT_OPS[c.op] || {}).name || '')}</em><small>${esc(c.text || '')}</small></span></label>`).join('') : '<div class="empty" style="padding:8px">아직 입력한 작업기준 없음</div>'}</div>
     <div class="row" style="margin-top:6px"><button class="btn" id="oCrit" style="flex:1">작업기준 입력·편집</button></div>
     <label class="cbl"><input type="checkbox" id="oDis" ${o.dissolve ? 'checked' : ''}> 판정 뒤 같은 유형끼리 맞닿은 폴리곤 합치기</label>
-    <label class="f">분석 범위</label>
-    <select class="sel" id="oClip"><option value="">기준 경계 전체</option>${clipCands.map((l) => `<option value="${l.id}" ${l.id === o.clip ? 'selected' : ''}>조사범위 안만: ${esc(l.name)}</option>`).join('')}</select>
+    <label class="f">작업 구역 <span style="font-weight:400">— 시 전체가 무거우면 도엽·읍면동 단위로 나눠 처리</span></label>
+    <select class="sel" id="oClip"><option value="">기준 경계 전체</option>${clipCands.map((l) => `<option value="clip:${l.id}" ${!o.area && l.id === o.clip ? 'selected' : ''}>조사범위 안만: ${esc(l.name)}</option>`).join('')}${Object.entries(AREA_TYPES).map(([k, v]) => `<option value="${k}" ${o.area && o.area.type === k ? 'selected' : ''}>${v.name}</option>`).join('')}</select>
+    ${areaPanelHTML(o)}
     <label class="f">중첩 정밀도</label>
     <select class="sel" id="oSamp">${[[25, '빠름 — 폴리곤당 최대 25점'], [100, '보통 — 최대 100점 (권장)'], [400, '정밀 — 최대 400점']].map(([v, t]) => `<option value="${v}" ${(o.samples || 100) == v ? 'selected' : ''}>${t}</option>`).join('')}</select>
     <label class="f">규칙에 쓰인 기초자료 <span style="font-weight:400">(초록=있음, 주황=없음 — 없으면 해당 조건은 건너뜀)</span></label>
     <div class="need">${p.need.map((k) => { const c = DATA_CATS.find((x) => x.key === k); return `<span class="${hasKey(k) ? 'y' : 'n'}" data-cat="${c.id}">${hasKey(k) ? '✓' : '＋'} ${esc(c.name)}</span>`; }).join('') || '<span>없음</span>'}</div>
     <div class="row" style="margin-top:12px"><button class="btn pri block" id="oRun" ${!bases.length || run ? 'disabled' : ''}>${run ? `도출 중 ${Math.round(o.run.pct)}%` : res ? (p.stale ? '⚠ 기준이 바뀜 — 결과 다시 도출' : '결과 다시 도출') : '이 지도로 결과 도출'}</button>${run ? '<button class="btn" id="oStop">중지</button>' : ''}</div>
-    ${res ? `<div class="row" style="margin-top:6px"><button class="btn pri block" data-dl="shp" style="background:#0b6bcb;border-color:#0b6bcb">⬇ 고친 경계 SHP 내려받기 (${fmt(res.n)}개 폴리곤)</button></div>` : ''}
+    ${res ? `<div class="row" style="margin-top:6px"><button class="btn pri block" data-dl="shp" style="background:#0b6bcb;border-color:#0b6bcb">⬇ 고친 경계 SHP 내려받기 (${fmt(res.nShown ?? res.n)}개 폴리곤)</button></div>` : ''}
     <div class="row" style="margin-top:6px"><button class="btn" id="oRules" style="flex:1">유형 판정 규칙 (${o.rules.length}개)</button>${res ? `<button class="btn" id="oVis" style="flex:1">${res.layer && res.layer.getVisible() ? '결과 숨기기' : '결과 보기'}</button>` : ''}</div>`;
   if (res) {
     const tot = res.stats.reduce((s, x) => s + x.area, 0);
     const rows = sortedStats(o, res);
-    h += `<div class="note" style="margin-top:10px">완료 · ${fmt(res.n)}개 폴리곤 · ${res.secs.toFixed(1)}초${res.shapeLog ? '<br><b>작업기준 적용 결과</b><br>' + res.shapeLog.map((l) => `· ${esc(l.title)} — ${esc(l.msg || '')}`).join('<br>') : ''}${res.dissolved ? '<br>· 같은 유형 맞닿은 폴리곤 합침' : ''}${res.chkN ? `<br><b style="color:var(--amber)">검토 필요(CHK) ${fmt(res.chkN)}개</b> — 지도에서 주황 테두리` : ''}</div>
+    h += `<div class="note" style="margin-top:10px">완료 · ${res.areaLabel ? esc(res.areaLabel) + ' · ' : ''}${fmt(res.nShown ?? res.n)}개 폴리곤 · ${res.secs.toFixed(1)}초${res.shapeLog ? '<br><b>작업기준 적용 결과</b><br>' + res.shapeLog.map((l) => `· ${esc(l.title)} — ${esc(l.msg || '')}`).join('<br>') : ''}${res.dissolved ? '<br>· 같은 유형 맞닿은 폴리곤 합침' : ''}${res.chkN ? `<br><b style="color:var(--amber)">검토 필요(CHK) ${fmt(res.chkN)}개</b> — 지도에서 주황 테두리` : ''}</div>
       <div class="legend"><table><tr><th>유형</th><th style="text-align:right">개수</th><th style="text-align:right">면적(ha)</th><th style="text-align:right">비율</th></tr>${rows.map((s) => `<tr><td><i style="background:${s.color}"></i>${esc(s.code)} ${esc(s.name)}</td><td class="n">${fmt(s.n)}</td><td class="n">${fmt(s.area / 1e4, 2)}</td><td class="n">${fmt(100 * s.area / tot, 1)}%</td></tr>`).join('')}<tr><td><b>합계</b></td><td class="n"><b>${fmt(res.stats.reduce((a, s) => a + s.n, 0))}</b></td><td class="n"><b>${fmt(tot / 1e4, 2)}</b></td><td class="n">100%</td></tr></table></div>
       <div class="row" style="margin-top:8px;font-size:11.5px;color:var(--muted)">결과 투명도<input type="range" min="0" max="1" step="0.05" value="${res.layer ? res.layer.getOpacity() : 0.8}" id="oOp" style="flex:1"></div>`;
   } else h += `<div class="note">왼쪽 탭에 기초자료를 올리고 위에서 최종 성과품을 고른 뒤 “결과 도출”을 누르면, ① 작업기준대로 기준 경계를 고치고 ② 폴리곤마다 다른 자료를 겹쳐 본 다음 ③ 판정 규칙의 위에서부터 처음 맞는 유형으로 정함.</div>`;
   if (!o.builtin) h += `<div class="row" style="margin-top:10px"><button class="btn" id="oDel" style="color:var(--red)">이 지도 종류 삭제</button></div>`;
   h += '</div>';
   // 오른쪽 맨 아래 고정: 성과품 내려받기(결과가 없으면 누를 때 먼저 도출)
-  h += `<div class="dlbar"><div class="dlh"><b>성과품 내려받기</b><span>${run ? `도출 중 ${Math.round(o.run.pct)}%` : res ? `${esc(o.short || o.name)} · ${fmt(res.n)}개 폴리곤 · ${String(res.at.getHours()).padStart(2, '0')}:${String(res.at.getMinutes()).padStart(2, '0')} 도출${res.geoms ? ' · 고친 경계' : ''}` : '아직 결과 없음 — 누르면 결과를 먼저 도출한 뒤 내려받음'}</span></div>
+  h += `<div class="dlbar"><div class="dlh"><b>성과품 내려받기</b><span>${run ? `도출 중 ${Math.round(o.run.pct)}%` : res ? `${esc(o.short || o.name)}${res.areaLabel ? ` · ${esc(res.areaLabel)}` : ''} · ${fmt(res.nShown ?? res.n)}개 폴리곤 · ${String(res.at.getHours()).padStart(2, '0')}:${String(res.at.getMinutes()).padStart(2, '0')} 도출${res.geoms ? ' · 고친 경계' : ''}` : '아직 결과 없음 — 누르면 결과를 먼저 도출한 뒤 내려받음'}</span></div>
     <div class="dl">${[['shp', 'SHP', '고친 경계 ZIP'], ['xlsx', 'Excel', '통계·속성·기준'], ['pdf', 'PDF', '도면+통계'], ['jpg', 'JPG', '도면 이미지'], ['geojson', 'GeoJSON', 'WGS84'], ['csv', 'CSV', '속성표']].map(([k, a, b]) => `<button class="btn ${res ? '' : 'pend'}" data-dl="${k}" ${run || !bases.length ? 'disabled' : ''}><b>${a}</b><small>${b}</small></button>`).join('')}</div>
     <div class="row dlc"><span>SHP 좌표계</span><select class="sel" id="oCrs">${WORK_CRS_LIST.concat(['EPSG:4326']).map((c) => `<option ${c === (o.outCrs || S.crs) ? 'selected' : ''}>${c}</option>`).join('')}</select></div></div>`;
   const R = $('#rpanel'); R.innerHTML = h;
-  $$('.pk', R).forEach((d) => d.onclick = () => { S.outId = d.dataset.o; LS.set('gb2.out', S.outId); showResultLayer(); renderOutputs(); renderStepper(); });
+  $$('.pk', R).forEach((d) => d.onclick = () => { S.outId = d.dataset.o; LS.set('gb2.out', S.outId); AREA.pick = false; liveMsg(''); showResultLayer(); renderOutputs(); renderStepper(); areaDraw(); });
   $('#addOut', R).onclick = addOutputDialog;
   const sb = $('#oBase', R); sb.onchange = () => { o.base = sb.value; saveOutputs(); renderStepper(); };
   $$('[data-ct]', R).forEach((cb) => cb.onchange = () => { const c = crit.find((x) => x.id === cb.dataset.ct); if (c) { c.on = cb.checked; saveOutputs(); renderOutputs(); renderStepper(); } });
   $('#oCrit', R).onclick = () => critDialog(o);
   $('#oDis', R).onchange = (e) => { o.dissolve = e.target.checked; saveOutputs(); renderOutputs(); renderStepper(); };
-  $('#oClip', R).onchange = (e) => { o.clip = e.target.value; saveOutputs(); renderOutputs(); renderStepper(); };
+  $('#oClip', R).onchange = (e) => { const v = e.target.value; if (AREA_TYPES[v]) return areaSetType(o, v); o.area = null; AREA.pick = false; liveMsg(''); o.clip = v.startsWith('clip:') ? v.slice(5) : ''; saveOutputs(); renderOutputs(); renderStepper(); areaDraw(); };
+  areaPanelBind(o, R);
   $('#oSamp', R).onchange = (e) => { o.samples = +e.target.value; saveOutputs(); renderOutputs(); renderStepper(); };
   $$('.need span[data-cat]', R).forEach((s) => s.onclick = () => { S.cat = s.dataset.cat; renderRail(); renderPanel(); });
   $('#oRun', R).onclick = () => runOutput(o);
@@ -2153,7 +2172,7 @@ function guideHTML() {
 
 
 // ---------- 실시간 진행 표시(지도 위) ----------
-const APP_VER = '2026.11.19-2';
+const APP_VER = '2026.11.19-3';
 const LIVE = { src: new ol.source.Vector({ wrapX: false }) };
 LIVE.styles = {
   tgt: new ol.style.Style({ stroke: new ol.style.Stroke({ color: 'rgba(255,255,255,.9)', width: 1.2, lineDash: [5, 4] }) }),
@@ -2222,7 +2241,7 @@ async function imgRoadExtract(o, c, base) {
   const p = { ...CRIT_NEW.imgroad(), ...(c.p || {}) }, z = +p.zoom === 17 ? 17 : 18, AA = attrAllow(base, p.allow), allow = AA.allow, autoForest = AA.auto || !allow.length;
   const tm = 2 * WM / 2 ** z, res = tm / 256;
   const col = base.col, ids = [];
-  let vExt = null; if (p.scope === 'view') vExt = ol.proj.transformExtent(view.calculateExtent(map.getSize()), S.crs, 'EPSG:3857');
+  let vExt = null; if (p.scope === 'view') vExt = ol.proj.transformExtent(view.calculateExtent(map.getSize()), S.crs, 'EPSG:3857'); vExt = areaClipExt(vExt);
   const tiles = new Map(), polys = [];
   for (let f = 0; f < base.n; f++) {
     if (allow.length && !tokMatchM(col ? col[f] : '', allow)) continue;
@@ -2234,7 +2253,7 @@ async function imgRoadExtract(o, c, base) {
     const x0 = Math.floor((ee[0] + WM) / tm), x1 = Math.floor((ee[2] + WM) / tm), y0 = Math.floor((WM - ee[3]) / tm), y1 = Math.floor((WM - ee[1]) / tm);
     for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) tiles.set(x + ',' + y, [x, y]);
   }
-  if (!polys.length) throw new Error('지금 지도 화면 안에 기준 경계 폴리곤이 없음 — 대상지로 이동하거나 판독 범위를 “전체”로');
+  if (!polys.length) throw new Error(CUR_AREA ? '고른 작업 구역 안에 기준 경계 폴리곤이 없음' : '지금 지도 화면 안에 기준 경계 폴리곤이 없음 — 대상지로 이동하거나 판독 범위를 “전체”로');
   if (AA.auto) toast(`“${c.title}”: 기준 경계 속성에 ${p.allow} 값이 없어 속성 없이 영상만으로 숲을 가려 임도를 찾음`);
   // 지도에서 진행 과정을 볼 수 있게: 대상 산림 폴리곤 테두리 + 전체 범위로 이동
   liveClear();
@@ -2244,7 +2263,7 @@ async function imgRoadExtract(o, c, base) {
   const blkF = new ol.Feature({ geometry: new ol.geom.Polygon([[[0, 0], [0, 0], [0, 0], [0, 0]]]), k: 'blk' }); LIVE.src.addFeature(blkF);
   let foundN = 0;
   liveMsg(`<b>${esc(c.title)}</b> — 산림 폴리곤 ${fmt(ids.length)}개 안에서 항공영상 판독 시작`);
-  const key = JSON.stringify([base.id, base.field, p.allow, p.scope === 'view' ? vExt.map((v) => Math.round(v)) : 'all', z, p.sens, p.maxWidth, p.minLen, p.minArea]);
+  const key = JSON.stringify([base.id, base.field, p.allow, vExt ? vExt.map((v) => Math.round(v)) : 'all', z, p.sens, p.maxWidth, p.minLen, p.minArea]);
   if (ROAD_CACHE.has(key)) { const cc = ROAD_CACHE.get(key); liveClear(); if (cc.geom && cc.geom.n) { const tmp = { geom: 'poly', name: '임도' }; await buildFeatures(tmp, cc.geom); tmp.features.forEach((ft) => LIVE.src.addFeature(new ol.Feature({ geometry: ft.getGeometry(), k: 'road' }))); } liveMsg(`<b>${esc(c.title)}</b> — 앞서 판독한 임도 ${fmt(cc.n)}개를 다시 씀`); return cc; }
   const maxTiles = +p.maxTiles || 15000;
   if (!(await confirmTiles(c, tiles.size, z))) throw { cancelled: true, msg: '영상 판독을 취소함' };
@@ -2315,7 +2334,7 @@ async function imgRoadExtract(o, c, base) {
 async function imgChangeExtract(o, c, base) {
   const p = { ...CRIT_NEW.imgchange(), ...(c.p || {}) }, z = +p.zoom === 18 ? 18 : 17, allow = attrAllow(base, p.allow).allow;
   const tm = 2 * WM / 2 ** z, res = tm / 256, col = base.col;
-  let vExt = null; if (p.scope === 'view') vExt = ol.proj.transformExtent(view.calculateExtent(map.getSize()), S.crs, 'EPSG:3857');
+  let vExt = null; if (p.scope === 'view') vExt = ol.proj.transformExtent(view.calculateExtent(map.getSize()), S.crs, 'EPSG:3857'); vExt = areaClipExt(vExt);
   const tiles = new Map(), polys = [];
   for (let f = 0; f < base.n; f++) {
     if (allow.length && !tokMatchM(col ? col[f] : '', allow)) continue;
@@ -2328,7 +2347,7 @@ async function imgChangeExtract(o, c, base) {
     for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) tiles.set(x + ',' + y, [x, y]);
   }
   if (!polys.length) throw new Error(p.scope === 'view' ? '지금 지도 화면 안에 살펴볼 폴리곤이 없음 — 대상지로 이동하거나 판독 범위를 “기준 경계 전체”로' : `기준 경계에 살펴볼 값(${allow.join(',')})을 가진 폴리곤이 없음`);
-  const key = JSON.stringify(['chg', base.id, p.allow, p.scope === 'view' ? vExt.map((v) => Math.round(v)) : 'all', z, p.sens, p.minArea, p.edge]);
+  const key = JSON.stringify(['chg', base.id, p.allow, vExt ? vExt.map((v) => Math.round(v)) : 'all', z, p.sens, p.minArea, p.edge]);
   liveClear();
   if (ROAD_CACHE.has(key)) { const cc = ROAD_CACHE.get(key); if (cc.geom && cc.geom.n) { const tmp = { geom: 'poly', name: '변화' }; await buildFeatures(tmp, cc.geom); tmp.features.forEach((ft) => LIVE.src.addFeature(new ol.Feature({ geometry: ft.getGeometry(), k: 'chg' }))); } liveMsg(`<b>${esc(c.title)}</b> — 앞서 찾은 변화 부분 ${fmt(cc.n)}개를 다시 씀`); return cc; }
   if (!(await confirmTiles(c, tiles.size, z))) throw { cancelled: true, msg: '영상 판독을 취소함' };
@@ -2547,7 +2566,7 @@ function snapPixels(px, PID, W, H, q) {
 async function imgSnapExtract(o, c, base) {
   const p = { ...CRIT_NEW.imgsnap(), ...(c.p || {}) }, z = +p.zoom === 18 ? 18 : 17, allow = attrAllow(base, p.allow).allow;
   const tm = 2 * WM / 2 ** z, res = tm / 256, col = base.col;
-  let vExt = null; if (p.scope === 'view') vExt = ol.proj.transformExtent(view.calculateExtent(map.getSize()), S.crs, 'EPSG:3857');
+  let vExt = null; if (p.scope === 'view') vExt = ol.proj.transformExtent(view.calculateExtent(map.getSize()), S.crs, 'EPSG:3857'); vExt = areaClipExt(vExt);
   const tiles = new Map(), polys = [], all = [];
   let aExt = ol.extent.createEmpty();
   for (let f = 0; f < base.n; f++) {
@@ -2564,7 +2583,7 @@ async function imgSnapExtract(o, c, base) {
   }
   if (!tiles.size) throw new Error(p.scope === 'view' ? '지금 지도 화면 안에 경계를 옮길 폴리곤이 없음 — 대상지로 이동하거나 판독 범위를 “기준 경계 전체”로' : `기준 경계에 옮길 값(${allow.join(',')})을 가진 폴리곤이 없음`);
   for (const q of all) if (q.ok || ol.extent.intersects(q.e, ol.extent.buffer(aExt, 50))) polys.push(q);
-  const key = JSON.stringify(['snap', base.id, p.allow, p.scope === 'view' ? vExt.map((v) => Math.round(v)) : 'all', z, p.band, p.sens, p.minArea]);
+  const key = JSON.stringify(['snap', base.id, p.allow, vExt ? vExt.map((v) => Math.round(v)) : 'all', z, p.band, p.sens, p.minArea]);
   liveClear();
   if (ROAD_CACHE.has(key)) { const cc = ROAD_CACHE.get(key); if (cc.geom && cc.geom.n) { const tmp = { geom: 'poly', name: '경계' }; await buildFeatures(tmp, cc.geom); tmp.features.forEach((ft) => LIVE.src.addFeature(new ol.Feature({ geometry: ft.getGeometry(), k: 'snap' }))); } liveMsg(`<b>${esc(c.title)}</b> — 앞서 찾은 옮길 경계 ${fmt(cc.n)}곳을 다시 씀`); return cc; }
   if (!(await confirmTiles(c, tiles.size, z))) throw { cancelled: true, msg: '영상 판독을 취소함' };
@@ -2693,6 +2712,17 @@ async function runOutput(o, opt) {
   const lookups = {}; S.layers.filter((l) => l.cat === 'lc').forEach((l) => lookups[varKey(l)] = LC_NAMES);
   o.run = { state: 'run', pct: 0 }; renderOutputs(); renderStepper();
   const roads = {}, imgFail = [];
+  let areaId = null; CUR_AREA = null;
+  if (o.area && AREA_TYPES[o.area.type]) {
+    try {
+      const polys = await areaPolys(o), e4 = ol.extent.createEmpty();
+      polys.forEach((p) => p[0].forEach((q) => ol.extent.extendCoordinate(e4, q)));
+      areaId = 'AREA-' + o.id; const ar = await wjob({ type: 'area', id: areaId, polys });
+      if (!ar.n) throw new Error('작업 구역 폴리곤을 만들지 못함');
+      CUR_AREA = ol.proj.transformExtent(e4, 'EPSG:4326', 'EPSG:3857');
+      liveMsg(`<b>작업 구역</b> — ${esc(AREA_TYPES[o.area.type].short)} ${esc(areaLabel(o))} (약 ${(ar.area / 1e6).toFixed(2)} km²) 안만 처리함`);
+    } catch (e) { o.run = null; renderAll(); clearTask('작업 구역 오류'); modal(`<h3>작업 구역을 쓸 수 없음</h3><p>${esc(e.message || String(e))}</p><div class="row" style="justify-content:flex-end"><button class="btn pri" onclick="closeModal()">확인</button></div>`); return; }
+  }
   for (const c of (o.criteria || []).filter((x) => x.on && (x.op === 'imgroad' || x.op === 'imgchange' || x.op === 'imgsnap'))) {
     const fn = c.op === 'imgroad' ? imgRoadExtract : c.op === 'imgsnap' ? imgSnapExtract : imgChangeExtract;
     let tries = 0;
@@ -2715,7 +2745,8 @@ async function runOutput(o, opt) {
   o.run = { state: 'run', pct: 0 }; o.exported = new Set();
   renderOutputs(); renderStepper();
   const t0 = Date.now();
-  const p = wjob({ type: 'analyze', base: base.id, baseField: base.field, inputs, clip: o.clip || null, rules: cp.rulesAll.map((r) => ({ code: r.code, name: r.name, when: r.when })), samples: o.samples || 100, lookups, criteria: cp.list, dissolve: !!o.dissolve }, (pct, text) => {
+  CUR_AREA = null;
+  const p = wjob({ type: 'analyze', base: base.id, baseField: base.field, inputs, clip: areaId || o.clip || null, rules: cp.rulesAll.map((r) => ({ code: r.code, name: r.name, when: r.when })), samples: o.samples || 100, lookups, criteria: cp.list, dissolve: !!o.dissolve }, (pct, text) => {
     o.run.pct = pct; setTask(`${o.short || o.name} — ${text}`, pct);
     const b = $('#oRun'); if (b) b.textContent = `도출 중 ${Math.round(pct)}%`;
     if (LIVE.src.getFeatures().length || /작업기준/.test(text)) liveMsg(`<b>기준 경계 고치는 중</b> — ${esc(text)} · ${Math.round(pct)}%`);
@@ -2743,10 +2774,11 @@ async function runOutput(o, opt) {
     const isNew = r.meta ? r.meta.src : null, mvd = r.meta && r.meta.mv ? r.meta.mv : null;
     const layer = new ol.layer.VectorImage({ source: new ol.source.Vector({ features: feats, wrapX: false }), opacity: isNew ? 0.7 : 0.8, imageRatio: 1.3, style: (ft) => { const c = colors[ft._i], w = isNew && isNew[ft._i] < 0 ? 2 : mvd && mvd[ft._i] ? 3 : chk && chk[ft._i] ? 1 : 0, k = c + w; let s = cache.get(k); if (!s) { s = new ol.style.Style({ fill: new ol.style.Fill({ color: rgba(c, isNew ? 0.45 : 1) }), stroke: new ol.style.Stroke(w === 2 ? { color: '#ffd600', width: 2.6 } : w === 3 ? { color: '#00e5ff', width: 2.2 } : w ? { color: '#ff8a00', width: 2 } : { color: 'rgba(30,30,30,.8)', width: 0.9 }) }); cache.set(k, s); } return s; } });
     if (imgFail.length) r.shapeLog = (r.shapeLog || []).concat(imgFail);
-    S.results[o.id] = { ...r, baseId: base.id, layer, colors, geoms, chkN, rulesAll: cp.rulesAll, critUsed: JSON.parse(JSON.stringify(o.criteria || [])), at: new Date(), crs: S.crs, rulesSig: rulesSig(o), baseName: base.name, inputs };
+    let nShown = 0; for (let f = 0; f < r.n; f++) if (r.code[f] !== -2) nShown++;
+    S.results[o.id] = { ...r, nShown, areaLabel: o.area && AREA_TYPES[o.area.type] ? `${AREA_TYPES[o.area.type].short} ${areaLabel(o)}` : '', baseId: base.id, layer, colors, geoms, chkN, rulesAll: cp.rulesAll, critUsed: JSON.parse(JSON.stringify(o.criteria || [])), at: new Date(), crs: S.crs, rulesSig: rulesSig(o), baseName: base.name, inputs };
     o.run = null;
     showResultLayer();
-    const changed = r.meta ? Array.from(r.meta.src).filter((v) => v < 0).length : 0, movedN = mvd ? Array.from(mvd).filter((v, i) => v && !(isNew && isNew[i] < 0)).length : 0;
+    const changed = r.meta ? Array.from(r.meta.src).filter((v, i) => v < 0 && r.code[i] !== -2).length : 0, movedN = mvd ? Array.from(mvd).filter((v, i) => v && !(isNew && isNew[i] < 0) && r.code[i] !== -2).length : 0;
     liveClear(true);
     if (r.meta) { // 새로 생긴(잘라 넣은) 폴리곤을 노란색으로 잠깐 강조
       for (let f = 0; f < r.n; f++) if (geoms && geoms[f]) { if (r.meta.src[f] < 0) LIVE.src.addFeature(new ol.Feature({ geometry: geoms[f].getGeometry(), k: 'cut' })); else if (mvd && mvd[f]) LIVE.src.addFeature(new ol.Feature({ geometry: geoms[f].getGeometry(), k: 'mv' })); }
@@ -2821,7 +2853,7 @@ function addOutputDialog() {
 function saveBlob(blob, name) { const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 2000); }
 const loadedLibs = {};
 function loadLib(url) { return loadedLibs[url] || (loadedLibs[url] = new Promise((res, rej) => { const s = document.createElement('script'); s.src = url; s.onload = res; s.onerror = () => rej(new Error('라이브러리를 불러오지 못함: ' + url)); document.head.appendChild(s); })); }
-function fileBase(o) { return `${(o.short || o.name).replace(/[\\/:*?"<>|\s]+/g, '_')}_${today().replace(/-/g, '')}`; }
+function fileBase(o) { const r = S.results[o.id], a = r && r.areaLabel ? '_' + r.areaLabel.replace(/1:(\d+),(\d+)/, '1-$1$2') : ''; return `${(o.short || o.name).replace(/[\\/:*?"<>|\s]+/g, '_')}${a.replace(/[\\/:*?"<>|\s,·:]+/g, '_')}_${today().replace(/-/g, '')}`; }
 function resultRows(o) {
   const r = S.results[o.id], B = layerById(r.baseId), rows = [];
   for (let f = 0; f < r.n; f++) {
@@ -2971,6 +3003,7 @@ function statsCanvas(o) {
 
 // ---------- 지도 클릭: 속성 보기 ----------
 map.on('singleclick', (e) => {
+  if (areaClick(e)) return;
   let html = '';
   const res = S.results[S.outId], o = curOut();
   map.forEachFeatureAtPixel(e.pixel, (ft, layer) => {
@@ -3067,6 +3100,177 @@ function statsDialog() {
   });
 }
 
+// ---------- 작업 구역: 국가기본도 도엽(1:50,000·1:25,000)·1:5,000·1:1,000 도엽·읍면동 ----------
+// 도엽번호: 1:50,000 = 하단 위도 2자리 + 좌측 경도 끝자리 + 01~16(15′, 북서부터) / 1:25,000 = +1~4 / 1:10,000 = +01~25(3′) / 1:5,000 = +001~100(1′30″) / 1:1,000 = 1:10,000 + 01~99,00(18″)
+const AREA_TYPES = { g50: { name: '국가기본도 1:50,000 도엽', short: '1:50,000' }, g25: { name: '국가기본도 1:25,000 도엽', short: '1:25,000' }, g5: { name: '1:5,000 도엽', short: '1:5,000' }, g1: { name: '1:1,000 도엽', short: '1:1,000' }, emd: { name: '읍면동(법정동) 경계', short: '읍면동' } };
+const AREA = { emd: new Map(), emdLoaded: null, pick: false };
+const p2 = (n) => String(n).padStart(2, '0'), p3 = (n) => String(n).padStart(3, '0');
+function sheetAt(type, lon, lat) {
+  const latD = Math.floor(lat), lonD = Math.floor(lon);
+  const r = Math.min(3, Math.floor((latD + 1 - lat) * 4)), c = Math.min(3, Math.floor((lon - lonD) * 4));
+  const g50 = `${latD}${((lonD % 10) + 10) % 10}${p2(r * 4 + c + 1)}`, top = latD + 1 - r / 4, left = lonD + c / 4;
+  const sub = (n) => { const s = 0.25 / n, rr = Math.min(n - 1, Math.floor((top - lat) / s)), cc = Math.min(n - 1, Math.floor((lon - left) / s)); return { rr, cc, top: top - rr * s, left: left + cc * s, s }; };
+  if (type === 'g50') return { code: g50, bbox: [left, top - 0.25, left + 0.25, top] };
+  if (type === 'g25') { const q = sub(2); return { code: g50 + (q.rr * 2 + q.cc + 1), bbox: [q.left, q.top - q.s, q.left + q.s, q.top] }; }
+  if (type === 'g5') { const q = sub(10); return { code: g50 + p3(q.rr * 10 + q.cc + 1), bbox: [q.left, q.top - q.s, q.left + q.s, q.top] }; }
+  if (type === 'g1') { const q = sub(5), s = q.s / 10, rr = Math.min(9, Math.floor((q.top - lat) / s)), cc = Math.min(9, Math.floor((lon - q.left) / s)), k = (rr * 10 + cc + 1) % 100; return { code: g50 + p2(q.rr * 5 + q.cc + 1) + p2(k), bbox: [q.left + cc * s, q.top - (rr + 1) * s, q.left + (cc + 1) * s, q.top - rr * s] }; }
+  return null;
+}
+function sheetBBox(code) {
+  code = String(code).replace(/\D/g, '');
+  if (code.length < 5) return null;
+  const latD = +code.slice(0, 2), d = +code[2], lonD = d >= 4 ? 120 + d : 130 + d, i50 = +code.slice(3, 5) - 1;
+  if (!(latD >= 32 && latD <= 39) || i50 < 0 || i50 > 15) return null;
+  const top = latD + 1 - Math.floor(i50 / 4) / 4, left = lonD + (i50 % 4) / 4;
+  const cut = (n, idx) => { const s = 0.25 / n; return [top - Math.floor(idx / n) * s, left + (idx % n) * s, s]; };
+  let t, l, s, type;
+  if (code.length === 5) { t = top; l = left; s = 0.25; type = 'g50'; }
+  else if (code.length === 6) { const i = +code[5] - 1; if (i < 0 || i > 3) return null; [t, l, s] = cut(2, i); type = 'g25'; }
+  else if (code.length === 8) { const i = +code.slice(5) - 1; if (i < 0 || i > 99) return null; [t, l, s] = cut(10, i); type = 'g5'; }
+  else if (code.length === 9) { const i10 = +code.slice(5, 7) - 1; if (i10 < 0 || i10 > 24) return null; const [t1, l1, s1] = cut(5, i10), k = (+code.slice(7) || 100) - 1, ss = s1 / 10; t = t1 - Math.floor(k / 10) * ss; l = l1 + (k % 10) * ss; s = ss; type = 'g1'; }
+  else return null;
+  return { type, code, bbox: [l, t - s, l + s, t] };
+}
+const bboxPoly = (b) => [[[b[0], b[1]], [b[2], b[1]], [b[2], b[3]], [b[0], b[3]], [b[0], b[1]]]];
+const bboxKm2 = (b) => (b[2] - b[0]) * 111.32 * Math.cos((b[1] + b[3]) / 2 * Math.PI / 180) * (b[3] - b[1]) * 110.95;
+// 읍면동 경계(브이월드 데이터 API, JSONP)
+function vwData(params) {
+  return new Promise((res, rej) => {
+    const key = vwKey(); if (!key) return rej(new Error('브이월드 키가 없음 — 오른쪽 위 “브이월드 연결”에서 키를 넣을 것'));
+    const cb = '__vwd' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), s = document.createElement('script');
+    const tm = setTimeout(() => { delete window[cb]; s.remove(); rej(new Error('브이월드 응답 없음')); }, 20000);
+    window[cb] = (d) => { clearTimeout(tm); delete window[cb]; s.remove(); const r = d && d.response; if (!r || r.status === 'ERROR') rej(new Error((r && r.error && r.error.text) || '브이월드 오류')); else res(r); };
+    s.src = 'https://api.vworld.kr/req/data?' + new URLSearchParams({ service: 'data', request: 'GetFeature', data: 'LT_C_ADEMD_INFO', key, domain: location.hostname, crs: 'EPSG:4326', format: 'json', geometry: 'true', attribute: 'true', size: '1000', ...params }) + '&callback=' + cb;
+    s.onerror = () => { clearTimeout(tm); delete window[cb]; rej(new Error('브이월드 데이터 요청 실패')); };
+    document.head.appendChild(s);
+  });
+}
+function addEmd(fs) {
+  const gj = new ol.format.GeoJSON();
+  for (const f of fs || []) { const pr = f.properties || {}; const code = pr.emd_cd; if (!code || AREA.emd.has(code)) continue; const g = gj.readGeometry(f.geometry, { dataProjection: 'EPSG:4326', featureProjection: 'EPSG:4326' }); AREA.emd.set(code, { code, name: pr.emd_kor_nm || pr.full_nm, full: pr.full_nm || pr.emd_kor_nm, g4326: g }); }
+}
+async function loadEmd(bbox4326) {
+  const key = bbox4326.map((v) => v.toFixed(3)).join(',');
+  if (AREA.emdLoaded === key) return;
+  setTask('읍면동 경계 받는 중');
+  let page = 1, total = 1;
+  do { const r = await vwData({ geomFilter: `BOX(${bbox4326.join(',')})`, page: String(page) }); addEmd(r.result && r.result.featureCollection && r.result.featureCollection.features); total = +(r.page && r.page.total) || 1; page++; } while (page <= total && page <= 10);
+  AREA.emdLoaded = key; clearTask(`읍면동 경계 ${fmt(AREA.emd.size)}개 받음`);
+}
+async function emdByCodes(codes) {
+  const miss = codes.filter((c) => !AREA.emd.has(c));
+  for (const c of miss) { const r = await vwData({ attrFilter: `emd_cd:=:${c}` }); addEmd(r.result && r.result.featureCollection && r.result.featureCollection.features); }
+}
+function areaBaseBBox(o) {
+  const b = layerById(o.base || defaultBase(o)); let e = null;
+  if (b && b.features && b.features.length) { e = ol.extent.createEmpty(); b.features.forEach((f) => { const g = f.getGeometry(); if (g) ol.extent.extend(e, g.getExtent()); }); }
+  else e = view.calculateExtent(map.getSize());
+  return ol.proj.transformExtent(e, S.crs, 'EPSG:4326');
+}
+// 지도 표시
+AREA.src = new ol.source.Vector();
+AREA.lay = new ol.layer.Vector({ source: AREA.src, zIndex: 900, style: (f) => {
+  const on = f.get('on'), lab = f.get('lab'), z = view.getResolution();
+  return new ol.style.Style({ fill: new ol.style.Fill({ color: on ? 'rgba(11,107,203,.28)' : 'rgba(0,0,0,0)' }), stroke: new ol.style.Stroke({ color: on ? '#0b6bcb' : 'rgba(255,214,0,.9)', width: on ? 2.6 : 1.1, lineDash: on ? undefined : [6, 4] }),
+    text: lab && f.get('px') > 70 ? new ol.style.Text({ text: lab, font: '600 12px Pretendard, sans-serif', fill: new ol.style.Fill({ color: on ? '#fff' : '#ffe680' }), stroke: new ol.style.Stroke({ color: 'rgba(0,0,0,.75)', width: 3 }), overflow: false }) : undefined });
+} });
+map.addLayer(AREA.lay);
+function areaDraw() {
+  AREA.src.clear();
+  const o = curOut(), a = o && o.area; if (!a || !AREA_TYPES[a.type]) return;
+  const sel = new Set(a.sel || []), res = view.getResolution();
+  const add = (g4326, code, lab, on) => { const g = g4326.clone().transform('EPSG:4326', S.crs), e = g.getExtent(); AREA.src.addFeature(new ol.Feature({ geometry: g, code, lab, on, px: Math.min(ol.extent.getWidth(e), ol.extent.getHeight(e)) / res })); };
+  if (a.type === 'emd') {
+    for (const v of AREA.emd.values()) add(v.g4326, v.code, v.name, sel.has(v.code));
+    for (const c of sel) if (!AREA.emd.has(c)) { /* 아직 안 받은 선택 */ }
+    return;
+  }
+  const done = new Set();
+  for (const c of sel) { const b = sheetBBox(c); if (b) { add(new ol.geom.Polygon(bboxPoly(b.bbox)), c, c, true); done.add(c); } }
+  const ve = ol.proj.transformExtent(view.calculateExtent(map.getSize()), S.crs, 'EPSG:4326');
+  const step = { g50: 0.25, g25: 0.125, g5: 0.025, g1: 0.005 }[a.type], nx = Math.ceil((ve[2] - ve[0]) / step) + 1, ny = Math.ceil((ve[3] - ve[1]) / step) + 1;
+  if (nx * ny > 2500) { liveMsg(AREA.pick ? `<b>${AREA_TYPES[a.type].short} 도엽 고르기</b> — 격자가 너무 많아 안 그림. 지도를 더 확대하면 격자가 보임` : ''); return; }
+  for (let y = 0; y < ny; y++) for (let x = 0; x < nx; x++) {
+    const lon = Math.floor(ve[0] / step) * step + (x + 0.5) * step, lat = Math.floor(ve[1] / step) * step + (y + 0.5) * step;
+    const s = sheetAt(a.type, lon, lat); if (!s || done.has(s.code)) continue; done.add(s.code);
+    add(new ol.geom.Polygon(bboxPoly(s.bbox)), s.code, s.code, false);
+  }
+  if (AREA.pick) liveMsg(`<b>${AREA_TYPES[a.type].short} 도엽 고르기</b> — 지도에서 칸을 누르면 선택/해제 (여러 개 가능) · 파란 칸이 작업 구역`);
+}
+view.on('change:resolution', () => { const o = curOut(); if (o && o.area && o.area.type !== 'emd') clearTimeout(AREA.t), AREA.t = setTimeout(areaDraw, 150); });
+map.on('moveend', () => { const o = curOut(); if (o && o.area && o.area.type !== 'emd') areaDraw(); else if (o && o.area) AREA.lay.changed(); });
+function areaClick(e) {
+  const o = curOut(), a = o && o.area; if (!AREA.pick || !a || !AREA_TYPES[a.type]) return false;
+  const [lon, lat] = ol.proj.transform(e.coordinate, S.crs, 'EPSG:4326'); let code = null;
+  if (a.type === 'emd') { for (const v of AREA.emd.values()) if (v.g4326.intersectsCoordinate([lon, lat])) { code = v.code; break; } if (!code) { toast('여기에는 받아 둔 읍면동 경계가 없음'); return true; } }
+  else { const s = sheetAt(a.type, lon, lat); code = s && s.code; }
+  if (!code) return true;
+  const sel = new Set(a.sel || []); sel.has(code) ? sel.delete(code) : sel.add(code); a.sel = [...sel];
+  saveOutputs(); areaDraw(); renderOutputs(); renderStepper();
+  return true;
+}
+function areaLabel(o) {
+  const a = o.area; if (!a || !AREA_TYPES[a.type] || !(a.sel || []).length) return '';
+  const nm = (c) => a.type === 'emd' ? ((AREA.emd.get(c) || {}).name || (a.names || {})[c] || c) : c;
+  return a.sel.length <= 3 ? a.sel.map(nm).join('·') : `${nm(a.sel[0])} 외 ${a.sel.length - 1}`;
+}
+async function areaSetType(o, type) {
+  if (!type) { o.area = null; AREA.pick = false; }
+  else { if (!o.area || o.area.type !== type) o.area = { type, sel: [], names: {} }; AREA.pick = true; o.clip = ''; }
+  saveOutputs(); renderOutputs(); renderStepper();
+  if (type === 'emd') { try { await loadEmd(areaBaseBBox(o)); } catch (e) { toast('읍면동 경계를 받지 못함: ' + e.message, 'warn'); } }
+  if (type) { const sel = o.area.sel || []; if (!sel.length) { const z = { g50: 11, g25: 12, g5: 14, g1: 15.5, emd: 12 }[type]; if (view.getZoom() < z - 1.5) view.animate({ zoom: z, duration: 400 }); } }
+  if (!type) liveMsg('');
+  areaDraw();
+}
+// 결과 도출 때: 작업 구역 폴리곤(경위도) 모으기
+async function areaPolys(o) {
+  const a = o.area; if (!a || !AREA_TYPES[a.type]) return null;
+  const sel = a.sel || []; if (!sel.length) throw new Error(`작업 구역(${AREA_TYPES[a.type].name})을 하나도 고르지 않았음 — 지도에서 칸을 누르거나 번호를 입력`);
+  if (a.type === 'emd') {
+    await emdByCodes(sel);
+    const out = [];
+    for (const c of sel) { const v = AREA.emd.get(c); if (!v) continue; const g = v.g4326; (g.getType() === 'MultiPolygon' ? g.getCoordinates() : [g.getCoordinates()]).forEach((p) => out.push(p)); }
+    if (!out.length) throw new Error('고른 읍면동 경계를 받지 못함');
+    return out;
+  }
+  return sel.map((c) => sheetBBox(c)).filter(Boolean).map((b) => bboxPoly(b.bbox));
+}
+let CUR_AREA = null; // 영상 판독 범위(EPSG:3857 범위)
+function areaClipExt(vExt) { if (!CUR_AREA) return vExt; if (!vExt) return CUR_AREA; const i = ol.extent.getIntersection(vExt, CUR_AREA); return ol.extent.isEmpty(i) ? CUR_AREA : i; }
+function areaPanelHTML(o) {
+  const a = o.area; if (!a || !AREA_TYPES[a.type]) return '';
+  const sel = a.sel || [];
+  let km = 0; if (a.type !== 'emd') sel.forEach((c) => { const b = sheetBBox(c); if (b) km += bboxKm2(b.bbox); }); else sel.forEach((c) => { const v = AREA.emd.get(c); if (v) km += ol.sphere.getArea(v.g4326, { projection: 'EPSG:4326' }) / 1e6; });
+  const nm = (c) => a.type === 'emd' ? ((AREA.emd.get(c) || {}).name || (a.names || {})[c] || c) : c;
+  return `<div class="areabox">
+    <div class="ah">${AREA.pick ? '<b>지도에서 칸을 눌러 고르는 중</b> — 다시 누르면 해제' : '지도에서 고르려면 “지도에서 고르기”'}</div>
+    <div class="row" style="gap:6px"><input class="sel" id="oAreaIn" placeholder="${a.type === 'emd' ? '읍면동 이름 (예: 의림동, 봉양읍)' : { g50: '도엽번호 5자리 (예: 37612)', g25: '도엽번호 6자리 (예: 376121)', g5: '도엽번호 8자리 (예: 37612068)', g1: '도엽번호 9자리 (예: 376122308)' }[a.type]} — 쉼표로 여러 개" style="flex:1;margin:0"><button class="btn" id="oAreaAdd">추가</button></div>
+    <div class="achips">${sel.map((c) => `<span>${esc(nm(c))}<i data-adel="${esc(c)}">✕</i></span>`).join('') || '<em>아직 고른 구역 없음 — 결과 도출이 막힘</em>'}</div>
+    <div class="row" style="gap:6px"><button class="btn" id="oAreaPick" style="flex:1">${AREA.pick ? '✓ 고르기 끝' : '지도에서 고르기'}</button><button class="btn" id="oAreaGo" ${sel.length ? '' : 'disabled'}>구역으로 이동</button><button class="btn" id="oAreaClr" ${sel.length ? '' : 'disabled'}>모두 해제</button></div>
+    <small>${sel.length ? `${fmt(sel.length)}개 · 약 ${km.toFixed(km < 10 ? 2 : 1)} km² — 이 안의 폴리곤만(절반 이상 들어간 것) 영상 판독·경계 수정·결과에 들어감` : ''}</small></div>`;
+}
+function areaPanelBind(o, R) {
+  const a = o.area; if (!a) return;
+  const inp = $('#oAreaIn', R), add = $('#oAreaAdd', R);
+  const doAdd = async () => {
+    const parts = inp.value.split(/[,\s·]+/).map((x) => x.trim()).filter(Boolean); if (!parts.length) return;
+    const sel = new Set(a.sel || []), bad = [];
+    if (a.type === 'emd') {
+      try { await loadEmd(areaBaseBBox(o)); } catch (e) { }
+      for (const q of parts) { const hits = [...AREA.emd.values()].filter((v) => v.name === q || v.full.endsWith(' ' + q) || v.name.startsWith(q)); if (hits.length) hits.forEach((v) => { sel.add(v.code); a.names = a.names || {}; a.names[v.code] = v.name; }); else bad.push(q); }
+    } else for (const q of parts) { const b = sheetBBox(q); if (b && b.type === a.type) sel.add(b.code); else bad.push(q); }
+    a.sel = [...sel]; saveOutputs(); renderOutputs(); renderStepper(); areaDraw();
+    if (bad.length) toast(`찾지 못함: ${bad.join(', ')}${a.type !== 'emd' ? ` — ${AREA_TYPES[a.type].short} 도엽번호 자릿수 확인` : ' — 기준 경계 범위 안의 읍면동만 찾음'}`, 'warn');
+    else { inp.value = ''; $('#oAreaGo') && $('#oAreaGo').click(); }
+  };
+  add.onclick = doAdd; inp.onkeydown = (e) => { if (e.key === 'Enter') doAdd(); };
+  $('#oAreaPick', R).onclick = () => { AREA.pick = !AREA.pick; renderOutputs(); areaDraw(); if (!AREA.pick) liveMsg(''); };
+  $('#oAreaClr', R).onclick = () => { a.sel = []; saveOutputs(); renderOutputs(); renderStepper(); areaDraw(); };
+  $('#oAreaGo', R).onclick = () => { const e = ol.extent.createEmpty(); AREA.src.getFeatures().filter((f) => f.get('on')).forEach((f) => ol.extent.extend(e, f.getGeometry().getExtent())); if (!ol.extent.isEmpty(e)) view.fit(e, { padding: [80, 80, 80, 80], duration: 500, maxZoom: 17 }); };
+  $$('[data-adel]', R).forEach((x) => x.onclick = () => { a.sel = (a.sel || []).filter((c) => c !== x.dataset.adel); saveOutputs(); renderOutputs(); renderStepper(); areaDraw(); });
+}
+
 // ---------- 명령창: 한국어 명령 → 경계 작업기준 → 자동 도출 (AI 없이 사이트 안에서 해석) ----------
 function pushHist(o) { (o._hist || (o._hist = [])).push({ criteria: JSON.parse(JSON.stringify(o.criteria || [])), dissolve: !!o.dissolve, result: S.results[o.id] || null }); if (o._hist.length > 10) o._hist.shift(); }
 function undoOut(o) {
@@ -3098,6 +3302,9 @@ function parseCmdLine(s) {
   if (T(/(shp|셰이프|쉐이프|엑셀|excel|xlsx|pdf|jpg|이미지|도면)/i) && T(/(저장|다운|내보내|받|출력|뽑)/)) return { k: 'export', fmt: T(/엑셀|excel|xlsx/i) ? 'xlsx' : T(/pdf/i) ? 'pdf' : T(/jpg|이미지|도면/i) ? 'jpg' : 'shp' };
   if (T(/(작업)?기준.*(비우|초기화|모두\s*삭제|전부\s*삭제|다\s*지워|다\s*꺼)/)) return { k: 'clear' };
   if (T(/(기준|목록).*(보여|보기|확인|열어)/)) return { k: 'list' };
+  if (T(/((작업\s*)?구역|도엽).*(해제|풀어|지워|없애)|시\s*전체(로|를|에서)?\s*(작업|처리|실행|해)/)) return { k: 'area', clear: true };
+  { const codes = s.match(/(?<!\d)\d{5,9}(?!\d)/g); if (codes && T(/도엽|격자|구역|만\b|만\s|만$/)) return { k: 'area', codes, run: T(/실행|도출|돌려|따|해줘/) }; }
+  { const m = /([가-힣0-9]+(?:읍|면|동|가))(?:\s*(?:만|에서|안|구역)|\s*만\s)/.exec(s); if (m && !T(/(달라|변화|임도|묘|경계선|합치)/)) return { k: 'area', emd: m[1], run: T(/실행|도출|돌려|해줘/) }; }
   if (T(/(같은|동일).*(유형|코드|비오톱).*(합치|합쳐|병합|묶)/)) return { k: 'dissolve', on: !T(/(말|않|안\s*합|해제|풀|끄)/) };
   const lay = cmdLayer(s), rc = /(\S+?)\s*(?:을|를)\s*(\S+?)\s*(?:으로|로)\s*(?:바꿔|바꾸|변경|고쳐|수정)/.exec(s);
   let op = null;
@@ -3136,7 +3343,7 @@ function applyCmdCrit(o, a) {
   const i = o.criteria.findIndex((x) => x.op === 'memo'); o.criteria.splice(i < 0 ? o.criteria.length : i, 0, c);
   return '새 기준 추가';
 }
-const CMD_EX = ['영상 경계선에 맞춰 경계 옮기기 15m', '산림 안 달라진 부분 따기 민감도 4', '임도 따기 폭 10m 이하', '임도 노선 4m로 잘라 B12로', '묘지 점 3개 이상 15m 안 모이면 F22', '토지피복 154 큰 도로 폭 8m 이상은 B11로', '임상도 경계로 산림 나누기', '300㎡ 미만 조각 합치기', 'E11을 E12로 바꿔', '같은 유형 합치기', '영상 변화 끄기', '실행', '되돌리기', 'SHP 저장'];
+const CMD_EX = ['도엽 37608080만 실행', '의림동만 실행', '구역 해제', '영상 경계선에 맞춰 경계 옮기기 15m', '산림 안 달라진 부분 따기 민감도 4', '임도 따기 폭 10m 이하', '임도 노선 4m로 잘라 B12로', '묘지 점 3개 이상 15m 안 모이면 F22', '토지피복 154 큰 도로 폭 8m 이상은 B11로', '임상도 경계로 산림 나누기', '300㎡ 미만 조각 합치기', 'E11을 E12로 바꿔', '같은 유형 합치기', '영상 변화 끄기', '실행', '되돌리기', 'SHP 저장'];
 function cmdLog(html, cls) { const L = $('#cmdLog'); if (!L) return; L.classList.remove('hidden'); const d = document.createElement('div'); d.className = 'cl ' + (cls || ''); d.innerHTML = html; L.appendChild(d); while (L.children.length > 40) L.firstChild.remove(); L.scrollTop = L.scrollHeight; return d; }
 function cmdHelp() {
   cmdLog(`<b>명령 예시</b> — 누르면 입력칸에 들어감. 여러 명령은 줄바꿈이나 ; 로 나눔. 기준을 바꾸는 명령은 끝나면 바로 결과 도출까지 함.<div class="cx">${CMD_EX.map((e) => `<span data-ex="${esc(e)}">${esc(e)}</span>`).join('')}</div><span style="opacity:.75">숫자 단위: m(폭·거리), ㎡·ha(면적), 개(점 수), 민감도 1~5. 값: 산림·초지·농경지·나지·시가지·수역·습지, 토지피복 3자리 코드(154 등), 유형 코드(B11·E12 등). “화면 안만”을 붙이면 지금 보이는 곳만 판독함.</span>`, 'help');
@@ -3155,9 +3362,23 @@ async function cmdExec(text) {
   if (acts.some((a) => a.k === 'help')) { cmdHelp(); return; }
   if (acts.some((a) => a.k === 'list')) { critDialog(o); say('작업기준 목록을 엶'); }
   if (acts.some((a) => a.k === 'undo')) { say(undoOut(o) ? '직전 상태(작업기준·결과)로 되돌림' : '되돌릴 이전 상태가 없음', 'w'); return; }
-  const changes = acts.filter((a) => ['crit', 'off', 'clear', 'dissolve'].includes(a.k));
+  const changes = acts.filter((a) => ['crit', 'off', 'clear', 'dissolve', 'area'].includes(a.k));
   if (changes.length) pushHist(o);
   for (const a of acts) {
+    if (a.k === 'area') {
+      if (a.clear) { o.area = null; AREA.pick = false; liveMsg(''); say('작업 구역을 풀고 기준 경계 전체로 처리함'); }
+      else if (a.codes) {
+        const bs = a.codes.map(sheetBBox).filter(Boolean), bad = a.codes.filter((c) => !sheetBBox(c));
+        if (bs.length) { const type = bs[0].type; o.area = { type, sel: [...new Set(bs.filter((b) => b.type === type).map((b) => b.code))], names: {} }; o.clip = ''; say(`작업 구역: ${esc(AREA_TYPES[type].short)} 도엽 ${o.area.sel.map(esc).join(', ')}`); }
+        if (bad.length) say(`도엽번호로 읽지 못함: ${bad.map(esc).join(', ')} (1:50,000=5자리, 1:25,000=6자리, 1:5,000=8자리, 1:1,000=9자리)`, 'w');
+      } else if (a.emd) {
+        try { await loadEmd(areaBaseBBox(o)); } catch (e) { say('읍면동 경계를 받지 못함: ' + esc(e.message), 'w'); }
+        const hits = [...AREA.emd.values()].filter((v) => v.name === a.emd || v.name.startsWith(a.emd));
+        if (hits.length) { o.area = { type: 'emd', sel: hits.map((v) => v.code), names: Object.fromEntries(hits.map((v) => [v.code, v.name])) }; o.clip = ''; say(`작업 구역: 읍면동 ${hits.map((v) => esc(v.full)).join(', ')}`); }
+        else say(`기준 경계 범위에서 “${esc(a.emd)}” 읍면동을 찾지 못함`, 'w');
+      }
+      areaDraw(); $('#oAreaGo') && $('#oAreaGo').click();
+    }
     if (a.k === 'unknown') say(`알아듣지 못함: “${esc(a.s)}” — <a href="#" data-h>명령 예시 보기</a>`, 'w');
     if (a.k === 'clear') { (o.criteria || []).forEach((c) => { if (c.op !== 'memo') c.on = false; }); say('작업기준을 모두 끔(목록은 남김)'); }
     if (a.k === 'dissolve') { o.dissolve = a.on; say(a.on ? '판정 뒤 같은 유형끼리 맞닿은 폴리곤을 합침' : '같은 유형 합치기를 끔'); }
@@ -3166,6 +3387,8 @@ async function cmdExec(text) {
   }
   $$('[data-h]', box).forEach((x) => x.onclick = (e) => { e.preventDefault(); cmdHelp(); });
   saveOutputs(); renderAll();
+  const onlyArea = changes.length && changes.every((a) => a.k === 'area') && !acts.some((a) => a.run || a.k === 'run');
+  if (onlyArea) { say('구역만 정했음 — 이 구역으로 처리하려면 “실행”을 입력', ''); return; }
   const run = changes.length || acts.some((a) => a.k === 'run'), exp = acts.find((a) => a.k === 'export');
   if (run) {
     const base = layerById(o.base || defaultBase(o));
@@ -3176,8 +3399,8 @@ async function cmdExec(text) {
     await runOutput(o, { noHist: true });
     const r = S.results[o.id];
     if (!r || r === before) { say('도출이 끝나지 않았음(취소·오류) — 오류 창의 내용을 확인', 'w'); return; }
-    const ch = r.meta ? Array.from(r.meta.src).filter((v) => v < 0).length : 0, mv = r.meta && r.meta.mv ? Array.from(r.meta.mv).filter(Boolean).length : 0;
-    say(`<b>완료</b> — 결과 폴리곤 ${fmt(r.n)}개 · 잘라 넣은 폴리곤 ${fmt(ch)}개(노란 테두리) · 경계선이 옮겨진 폴리곤 ${fmt(mv)}개(청록 테두리)${r.chkN ? ` · 검토 필요 ${fmt(r.chkN)}개` : ''}` + (r.shapeLog && r.shapeLog.length ? '<br>' + r.shapeLog.map((l) => `· ${esc(l.title)} — ${esc(l.msg || '')}`).join('<br>') : '') + '<br><button class="btn pri" data-shp style="margin-top:6px;background:#0b6bcb;border-color:#0b6bcb;color:#fff">⬇ 이 결과를 SHP로 내려받기</button> <span style="opacity:.75">마음에 안 들면 “되돌리기”</span>', 'ok');
+    const ch = r.meta ? Array.from(r.meta.src).filter((v, i) => v < 0 && r.code[i] !== -2).length : 0, mv = r.meta && r.meta.mv ? Array.from(r.meta.mv).filter((v, i) => v && r.code[i] !== -2).length : 0;
+    say(`<b>완료</b> — ${o.area ? `작업 구역 ${esc(areaLabel(o))} · ` : ''}결과 폴리곤 ${fmt(r.nShown ?? r.n)}개 · 잘라 넣은 폴리곤 ${fmt(ch)}개(노란 테두리) · 경계선이 옮겨진 폴리곤 ${fmt(mv)}개(청록 테두리)${r.chkN ? ` · 검토 필요 ${fmt(r.chkN)}개` : ''}` + (r.shapeLog && r.shapeLog.length ? '<br>' + r.shapeLog.map((l) => `· ${esc(l.title)} — ${esc(l.msg || '')}`).join('<br>') : '') + '<br><button class="btn pri" data-shp style="margin-top:6px;background:#0b6bcb;border-color:#0b6bcb;color:#fff">⬇ 이 결과를 SHP로 내려받기</button> <span style="opacity:.75">마음에 안 들면 “되돌리기”</span>', 'ok');
     $$('[data-shp]', box).forEach((x) => x.onclick = () => cmdSaveShp(x));
   }
   if (exp) {
@@ -3190,7 +3413,7 @@ async function cmdSaveShp(btn) {
   if (!S.results[o.id]) { cmdLog('내려받을 결과가 없음 — 먼저 명령을 실행하거나 “실행”을 입력'); return; }
   const b = btn || { innerHTML: '', disabled: false }, keep = b.innerHTML;
   await doExport(o, 'shp', b); if (btn) { btn.innerHTML = keep; btn.disabled = false; }
-  cmdLog(`<b>${esc(o.short || o.name)}</b> 고친 경계 SHP(ZIP)를 내려받음 — 결과 폴리곤 ${fmt(S.results[o.id].n)}개`, 'ok');
+  cmdLog(`<b>${esc(o.short || o.name)}</b> 고친 경계 SHP(ZIP)를 내려받음 — 결과 폴리곤 ${fmt(S.results[o.id].nShown ?? S.results[o.id].n)}개`, 'ok');
 }
 function cmdInit() {
   const w = $('#mapwrap'); if (!w || $('#cmd')) return;
@@ -3227,6 +3450,7 @@ async function restore() {
 (async function init() {
   chipState();
   cmdInit();
+  setTimeout(() => { const o = curOut(); if (o && o.area && o.area.type === 'emd' && (o.area.sel || []).length) emdByCodes(o.area.sel).then(areaDraw).catch(() => { }); else areaDraw(); }, 800);
   if (!S.basemap) S.basemap = vwKey() ? 'sat' : 's2c-2016';
   renderAll();
   await setBasemap(S.basemap);
