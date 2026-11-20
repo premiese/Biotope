@@ -385,6 +385,9 @@ button,input,select,textarea{font:inherit;color:inherit}
 .toast.err{background:#a33}.toast.warn{background:#9a6510}
 #busy{position:fixed;inset:0;z-index:55;background:rgba(255,255,255,.45);display:flex;align-items:center;justify-content:center}
 #busy div{background:#fff;padding:14px 22px;border-radius:12px;box-shadow:0 8px 30px rgba(0,0,0,.2);font-weight:600}
+.ndbox{margin:10px 0 12px;padding:10px 11px;border:1px solid var(--line);border-radius:10px;background:rgba(60,140,80,.05)}
+.ndbox>b{font-size:13px}.ndbox p{margin:4px 0 8px;font-size:12px;color:var(--muted);line-height:1.5}.ndbox .m{margin-top:8px;font-size:11.5px;color:var(--dim);line-height:1.5}
+.ndleg{display:flex;align-items:center;gap:6px;margin-top:8px;font-size:11px;color:var(--muted)}.ndleg i{flex:1;height:8px;border-radius:4px;background:linear-gradient(90deg,#466ea0 0%,#966e46 8%,#cdaf6e 25%,#ebe178 42%,#8cc35a 60%,#288c37 80%,#0a5a23 100%)}
 </style>
 <div id="app">
   <header class="top">
@@ -1531,7 +1534,7 @@ const CATS = [
   { id: 'bld', key: '건물', name: '건물', desc: '건물 폴리곤. 폴리곤별 건물 면적률(건물_면적률)로 불투수·시가지 판정에 씀.', src: 'GIS건물통합정보 · 수치지형도 건물', fields: ['A9', 'BDTYP_CD', 'MAIN_PRPOS', '주용도', 'BLD_NM'], icon: '<rect x="4" y="3" width="10" height="18"/><path d="M14 9h6v12h-6M7 7h4M7 11h4M7 15h4"/>' },
   { id: 'road', key: '도로', name: '도로·교통', desc: '도로면·철도 폴리곤. 도로_면적률로 교통시설 비오톱 판정.', src: '수치지형도 도로경계(면) · 도로명주소 도로구간', fields: ['RN', 'ROAD_NM', 'RDDV', '도로명'], icon: '<path d="M8 3L5 21M16 3l3 18M12 4v3M12 10v4M12 17v3"/>' },
   { id: 'for', key: '임상', name: '산림(임상도)', desc: '1:5,000 임상도. 수종·임상명 필드로 침엽·활엽·혼효림을 나눔.', src: '산림청 산림공간정보서비스 임상도', fields: ['FRTP_NM', 'KOFTR_NM', '임상명', '임상', 'FRTP_CD', 'KOFTR_GROU'], icon: '<path d="M12 2l5 8h-3l4 6h-5v6h-2v-6H6l4-6H7z"/>' },
-  { id: 'veg', key: '식생', name: '현존식생', desc: '현존식생 조사 폴리곤(군락명). 현존식생도 결과의 1순위 자료.', src: '현존식생 조사 성과 · 생태자연도 식생', fields: ['COMMUNITY', '군락명', 'VEG_NM', '식생', 'NAME'], icon: '<path d="M12 22V10"/><path d="M12 10c0-4 3-7 8-7 0 5-3 8-8 7z"/><path d="M12 14c0-3-2-6-7-6 0 4 2 7 7 6z"/>' },
+  { id: 'veg', key: '식생', name: '현존식생', ndvi: true, desc: '현존식생 조사 폴리곤(군락명). 현존식생도 결과의 1순위 자료. 근적외(NIR)·NDVI 영상도 여기에 넣으면 임도 따기 등 영상 판독에서 식생과 비식생을 구분하는 데 참고함.', src: '현존식생 조사 성과 · 생태자연도 식생 · Sentinel-2 L2A(NDVI) · 국토위성·아리랑·드론 다중분광 영상', fields: ['COMMUNITY', '군락명', 'VEG_NM', '식생', 'NAME'], icon: '<path d="M12 22V10"/><path d="M12 10c0-4 3-7 8-7 0 5-3 8-8 7z"/><path d="M12 14c0-3-2-6-7-6 0 4 2 7 7 6z"/>' },
   { id: 'wat', key: '수역', name: '수역·하천', desc: '하천·호소 폴리곤. 수역_면적률로 하천 비오톱 판정.', src: '국가하천·지방하천 구역 · 수치지형도 수계', fields: ['RIV_NM', '하천명', 'NAME', 'W_TYPE'], icon: '<path d="M3 8c3-2 6 2 9 0s6-2 9 0M3 13c3-2 6 2 9 0s6-2 9 0M3 18c3-2 6 2 9 0s6-2 9 0"/>' },
   { id: 'wet', key: '습지', name: '습지', desc: '내륙·연안 습지 폴리곤.', src: '국가습지정보 · 습지보호지역', fields: ['WET_NM', '습지명', 'NAME', 'TYPE'], icon: '<path d="M4 18h16M6 14h12"/><path d="M8 14V8M12 14V5M16 14V9"/>' },
   { id: 'farm', key: '농지', name: '농경지(팜맵)', desc: '논·밭·과수·시설 구분. 피복 자료의 농경지 세분 보완.', src: '농림축산식품부 팜맵', fields: ['CLSF_NM', 'FL_NM', 'LANDUSE', '구분'], icon: '<path d="M3 20h18M5 20c0-6 3-9 7-9s7 3 7 9"/><path d="M12 11V4M9 6l3-2 3 2"/>' },
@@ -1633,7 +1636,7 @@ const OUT_DEFAULTS = [
    op: cluster(점 군집 → 새 경계) · replace(다른 자료 경계 따르기) · absorb(좁거나 작은 폴리곤을 이웃에 합치기) · minarea(최소 면적 정리) · memo(기록만, 수작업) */
 const CRIT_OPS = {
   cluster: { name: '점 군집 → 새 경계 그리기', hint: '현장조사 점이 일정 거리 안에 일정 개수 이상 모이면 그 범위를 새 폴리곤으로 잘라내고 지정한 유형을 줌 (예: 묘지).' },
-  imgroad: { name: '영상에서 임도 따기 (항공영상 자동 판독)', hint: '브이월드 항공영상을 내려받아 산림 폴리곤(자를 대상) 안에서 주변 숲보다 밝고 길쭉한 선형 지물(임도·산길)을 찾고, 그 모양대로 기준 경계를 잘라 새 폴리곤으로 넣음. 나무에 가려 끊긴 구간·그늘진 구간은 못 찾을 수 있어 검토 필요 표시를 남김.' },
+  imgroad: { name: '영상에서 임도 따기 (항공영상 자동 판독)', hint: '브이월드 항공영상을 내려받아 산림 폴리곤(자를 대상) 안에서 주변 숲보다 밝고 길쭉한 선형 지물(임도·산길)을 찾고(현존식생 탭의 근적외·NDVI 자료 또는 Sentinel-2 NDVI로 식생·비식생을 함께 확인), 그 모양대로 기준 경계를 잘라 새 폴리곤으로 넣음. 나무에 가려 끊긴 구간·그늘진 구간은 못 찾을 수 있어 검토 필요 표시를 남김.' },
   imgchange: { name: '영상에서 색·질감이 달라진 부분 따기', hint: '항공영상에서 폴리곤마다 대표 색·밝기·질감을 구하고, 그와 뚜렷이 다른 덩어리(벌채지·나지·새 건물·농지 전환 등)를 찾아 그 모양대로 경계를 잘라 새 폴리곤으로 넣음. 새 폴리곤의 유형은 다른 기초자료(토지피복 등)가 있으면 그 자료로, 없으면 영상 색으로(산림·초지·나지·시가지·수역) 정함.' },
   imgsnap: { name: '영상 경계선에 맞춰 경계 옮기기', hint: '이웃한 두 폴리곤의 경계 둘레(정한 폭 안)에서 화소마다 영상 색·밝기·질감이 어느 쪽 폴리곤의 대표값에 더 가까운지 따져, 더 가까운 쪽으로 넘김. 결과적으로 과거지도 경계선이 최신 정사영상에 보이는 경계(숲 가장자리·논둑·도로변 등)로 옮겨짐. 경계 밖으로 멀리 가지는 않으므로 큰 변화는 “달라진 부분 따기”가 맡음.' },
   split: { name: '다른 자료의 경계로 나누기', hint: '지정한 자료(예: 토지피복·임상도·지적)의 폴리곤 경계로 기준 경계를 잘라 나눔. 나뉜 조각은 원래 값을 가진 채로 남고, 유형은 결과 판정 규칙이 다시 정함. 한쪽 조각이 정한 면적보다 작으면 나누지 않음.' },
@@ -1648,7 +1651,7 @@ const CRIT_DEFAULTS = {
   biotope: [
     { id: 'c1', on: true, op: 'cluster', title: '묘지 경계', text: '묘지 포인트가 3개 이상 모여 있고 정사영상에서 노출된 땅(초지·나지)처럼 보일 때 묘지 경계를 그림. 영상 판독으로 최종 확인.', p: { layerCat: 'etc', layer: '', filt: '묘', minN: 3, dist: 15, buf: 3, allow: '3,4,6,E,F,H,림,초지,나지', minArea: 20, code: 'F22', name: '묘지', chk: true } },
     { id: 'c2', on: true, op: 'replace', title: '큰 도로는 토지피복 경계', text: '폭이 넓은 도로(대로·국도 등)는 토지피복지도의 도로 경계를 그대로 따름.', p: { layerCat: 'lc', layer: '', filt: '154', minWidth: 8, minArea: 0, code: 'B11', name: '도로', chk: false } },
-    { id: 'c3', on: true, op: 'imgroad', title: '임도는 영상에서 보이는 대로 따기', text: '산에 있는 도로(임도)는 정사영상에서 눈으로 보이는 곳을 따서 산림과 다른 폴리곤으로 분리함. 나무에 가린 구간은 영상 판독으로 보완. 숲 가장자리(농경지·시가지 등)에서 15 m 이상 떨어진 숲 안쪽 임도만 따고, 같은 유형은 한 가지 폭의 매끄러운 곡선으로 그림.', p: { allow: '3,E,림', scope: 'all', zoom: 18, sens: 2, maxWidth: 12, minLen: 40, minArea: 60, code: 'B12', name: '임도', chk: true, edge: 15 } },
+    { id: 'c3', on: true, op: 'imgroad', title: '임도는 영상에서 보이는 대로 따기', text: '산에 있는 도로(임도)는 정사영상에서 눈으로 보이는 곳을 따서 산림과 다른 폴리곤으로 분리함. 나무에 가린 구간은 영상 판독으로 보완. 숲 가장자리(농경지·시가지 등)에서 15 m 이상 떨어진 숲 안쪽 임도만 따고, 같은 유형은 한 가지 폭의 매끄러운 곡선으로 그림. 근적외(NIR)로 계산한 NDVI로 식생과 비식생을 함께 확인함.', p: { allow: '3,E,림', scope: 'all', zoom: 18, sens: 2, maxWidth: 12, minLen: 40, minArea: 60, code: 'B12', name: '임도', chk: true, edge: 15, ndvi: 'auto' } },
     { id: 'c3b', on: false, op: 'linecut', title: '임도 노선 자료로 따기', text: '산림청 임도 노선(선) SHP가 있으면 폭만큼 넓혀 경계를 따는 쪽이 더 정확함. 자료를 “도로·교통” 탭에 올리고 켬.', p: { layerCat: 'road', layer: '', filt: '', width: 4, allow: '3,E,림', code: 'B12', name: '임도', chk: false } },
     { id: 'c7', on: true, op: 'imgsnap', title: '영상 경계선에 맞춰 경계 옮기기', text: '과거지도 경계가 최신 정사영상의 색·질감 경계와 어긋난 곳은, 경계 둘레(기본 12 m) 안에서 영상에 보이는 경계를 따라 이웃 폴리곤과의 경계선을 옮김.', p: { allow: '', scope: 'all', zoom: 17, band: 12, sens: 3, minArea: 30, chk: true } },
     { id: 'c6', on: true, op: 'imgchange', title: '영상에서 달라진 부분 따기', text: '정사영상에서 색상이나 질감이 주변과 뚜렷이 달라진 부분(벌채·개간·나지·새 시설 등)은 과거지도 경계를 잘라 새 폴리곤으로 분리하고, 유형은 다른 기초자료(토지피복 등)를 참고해 정함.', p: { allow: '', scope: 'all', zoom: 17, sens: 3, minArea: 300, edge: 3, chk: true } },
@@ -1784,6 +1787,210 @@ async function s2Latest() {
   } catch (e) { clearTask('검색 실패'); toast('Sentinel-2 검색 실패: ' + e.message, 'err'); }
 }
 
+// ---------- 식생지수(NIR·NDVI) 자료: Sentinel-2 자동 · 근적외 밴드 GeoTIFF 올리기 → 임도 판독 참고 ----------
+const ND_NODATA = -32768, ND_MAXPX = 25e6;
+function ndCrs(code) { // 필요한 UTM 좌표계를 그때그때 등록
+  if (proj4.defs(code)) return code;
+  const m = /^EPSG:(326|327)(\d\d)$/.exec(code);
+  if (m) { proj4.defs(code, `+proj=utm +zone=${+m[2]}${m[1] === '327' ? ' +south' : ''} +datum=WGS84 +units=m +no_defs`); ol.proj.proj4.register(proj4); return code; }
+  return null;
+}
+function ndColor(v) { // 갈색(비식생) → 노랑 → 초록(식생), 음수는 물
+  if (v < 0) return [70, 110, 160];
+  const st = [[0, [150, 110, 70]], [0.2, [205, 175, 110]], [0.4, [235, 225, 120]], [0.6, [140, 195, 90]], [0.8, [40, 140, 55]], [1, [10, 90, 35]]];
+  for (let i = 1; i < st.length; i++) if (v <= st[i][0]) { const [a, ca] = st[i - 1], [b, cb] = st[i], t = (v - a) / (b - a); return ca.map((c, k) => Math.round(c + (cb[k] - c) * t)); }
+  return st[st.length - 1][1];
+}
+function ndExt3857(L) { return ol.proj.transformExtent([L.gt[0], L.gt[2] + L.gt[3] * L.h, L.gt[0] + L.gt[1] * L.w, L.gt[2]], L.crs, 'EPSG:3857'); }
+async function ndMakeOl(L) {
+  const sc = Math.max(1, Math.ceil(Math.max(L.w, L.h) / 4096)), cw = Math.ceil(L.w / sc), ch = Math.ceil(L.h / sc);
+  const cv = document.createElement('canvas'); cv.width = cw; cv.height = ch; const g = cv.getContext('2d'), im = g.createImageData(cw, ch), d = im.data;
+  for (let y = 0; y < ch; y++) for (let x = 0; x < cw; x++) {
+    const v = L.data[Math.min(L.h - 1, y * sc) * L.w + Math.min(L.w - 1, x * sc)], j = 4 * (y * cw + x);
+    if (v === ND_NODATA) continue; const c = ndColor(v / 10000); d[j] = c[0]; d[j + 1] = c[1]; d[j + 2] = c[2]; d[j + 3] = 255;
+  }
+  g.putImageData(im, 0, 0);
+  const url = await new Promise((r) => cv.toBlob((b) => r(URL.createObjectURL(b)), 'image/png'));
+  const ext = [L.gt[0], L.gt[2] + L.gt[3] * L.h, L.gt[0] + L.gt[1] * L.w, L.gt[2]];
+  L.extent = ol.proj.transformExtent(ext, L.crs, S.crs); L.ext3857 = ndExt3857(L);
+  return new ol.layer.Image({ source: new ol.source.ImageStatic({ url, imageExtent: ext, projection: L.crs, interpolate: false }), opacity: L.opacity, visible: L.visible });
+}
+async function addNdviLayer(meta, fromDb) {
+  if (!ndCrs(meta.crs)) { if (meta.crsDef) { proj4.defs(meta.crs, meta.crsDef); ol.proj.proj4.register(proj4); } else { toast(`${meta.name}: 좌표계 ${meta.crs}를 알 수 없음`, 'err'); return null; } }
+  const lm = LS.get('gb2.lm.' + meta.id, {});
+  const L = { ...meta, kind: 'ndvi', cat: meta.cat || 'veg', name: lm.name || meta.name, visible: lm.visible == null ? true : lm.visible, opacity: lm.opacity == null ? 0.75 : lm.opacity, size: meta.data.byteLength };
+  if (!(L.data instanceof Int16Array)) L.data = new Int16Array(L.data);
+  L.ol = await ndMakeOl(L); L.ol._L = L;
+  S.layers.push(L); S.layers.sort((a, b) => a.order - b.order); syncVecGroup();
+  if (!fromDb) { await DB.put({ id: L.id, kind: 'ndvi', cat: L.cat, name: L.name, src: L.src, date: L.date, cc: L.cc, res: L.res, crs: L.crs, gt: L.gt, w: L.w, h: L.h, data: L.data, order: L.order, note: L.note }).catch((e) => toast('브라우저 저장 실패(새로고침하면 다시 불러와야 함): ' + e.message, 'warn')); renderAll(); }
+  return L;
+}
+function ndStats(L) { const h = new Uint32Array(2001); let n = 0; for (let i = 0; i < L.data.length; i += 7) { const v = L.data[i]; if (v === ND_NODATA) continue; h[Math.max(0, Math.min(2000, Math.round(v / 10) + 1000))]++; n++; } const q = (p) => { let a = 0; for (let k = 0; k <= 2000; k++) { a += h[k]; if (a >= n * p) return (k - 1000) / 1000; } return 1; }; return { n, p10: q(0.1), p50: q(0.5), p90: q(0.9) }; }
+
+// Sentinel-2 L2A(10 m) 적색·근적외 밴드 → NDVI. 키 없이 Element84 Earth Search(AWS 공개 자료)에서 범위만큼만 읽음
+async function loadS2Ndvi(ext3857, opt = {}) {
+  const e4 = ol.proj.transformExtent(ext3857, 'EPSG:3857', 'EPSG:4326');
+  const cx = (e4[0] + e4[2]) / 2, zone = Math.floor((cx + 180) / 6) + 1, crs = ndCrs('EPSG:326' + String(zone).padStart(2, '0'));
+  const eU = ol.proj.transformExtent(e4, 'EPSG:4326', crs), R = 10;
+  const x0 = Math.floor(eU[0] / R) * R, y1 = Math.ceil(eU[3] / R) * R, w = Math.ceil((eU[2] - x0) / R), h = Math.ceil((y1 - eU[1]) / R);
+  if (w * h > ND_MAXPX) throw new Error(`범위가 너무 넓음(약 ${fmt(w * h / 1e4, 0)}㎢) — 작업 구역을 정하거나 지도를 확대해서 다시`);
+  const tag = opt.label || 'Sentinel-2 NDVI';
+  setTask(`${tag} — 장면 검색`, 5);
+  const now = new Date(), y = now.getFullYear(), leaf = opt.season !== 'latest';
+  const ranges = leaf ? [y, y - 1, y - 2].map((yy) => [`${yy}-06-01T00:00:00Z`, `${yy}-09-30T23:59:59Z`]).filter((r) => new Date(r[0]) < now) : [[new Date(now - 150 * 864e5).toISOString(), now.toISOString()]];
+  let pick = null;
+  for (const [a, b] of ranges) {
+    const r = await fetch('https://earth-search.aws.element84.com/v1/search', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ collections: ['sentinel-2-l2a'], bbox: e4, datetime: a + '/' + b, limit: 200, query: { 'eo:cloud_cover': { lt: 30 } } }) });
+    if (!r.ok) throw new Error('Sentinel-2 검색 응답 ' + r.status);
+    const items = (await r.json()).features || [];
+    // 같은 날 찍힌 장면끼리 묶어 대상 범위를 얼마나 덮는지·구름 비율로 고름
+    const byDay = new Map(); for (const it of items) { const d = it.properties.datetime.slice(0, 10); if (!byDay.has(d)) byDay.set(d, []); byDay.get(d).push(it); }
+    const pts = []; for (let i = 0; i <= 6; i++) for (let j = 0; j <= 6; j++) pts.push([e4[0] + (e4[2] - e4[0]) * i / 6, e4[1] + (e4[3] - e4[1]) * j / 6]);
+    const inPoly = (pt, g) => { const polys = g.type === 'Polygon' ? [g.coordinates] : g.type === 'MultiPolygon' ? g.coordinates : []; return polys.some((pl) => { const ring = pl[0]; let c = false; for (let i = 0, k = ring.length - 1; i < ring.length; k = i++) { const [xi, yi] = ring[i], [xk, yk] = ring[k]; if ((yi > pt[1]) !== (yk > pt[1]) && pt[0] < (xk - xi) * (pt[1] - yi) / (yk - yi) + xi) c = !c; } return c; }); };
+    const cand = [...byDay].map(([d, its]) => ({ d, its, cov: pts.filter((pt) => its.some((it) => inPoly(pt, it.geometry))).length / pts.length, cc: Math.max(...its.map((it) => +it.properties['eo:cloud_cover'] || 0)) }));
+    const ok = cand.filter((c) => c.cov >= 0.98).sort((p, q) => (p.cc <= 10) !== (q.cc <= 10) ? (p.cc <= 10 ? -1 : 1) : p.cc <= 10 ? q.d.localeCompare(p.d) : p.cc - q.cc);
+    if (ok.length && ok[0].cc <= 20) { pick = ok[0]; break; }
+    if (!pick && ok.length) pick = ok[0];
+  }
+  if (!pick) throw new Error(leaf ? '최근 3년 생장기(6~9월)에 이 범위를 덮는 구름 적은 Sentinel-2 장면이 없음' : '최근 150일 안에 구름 적은 장면이 없음');
+  const data = new Int16Array(w * h).fill(ND_NODATA);
+  const okScl = new Uint8Array(16); [2, 4, 5, 6, 7, 11].forEach((k) => okScl[k] = 1);
+  let k = 0;
+  for (const it of pick.its) {
+    k++; setTask(`${tag} — ${pick.d} 장면 ${k}/${pick.its.length} 읽는 중`, 10 + 80 * (k - 1) / pick.its.length);
+    const ic = ndCrs('EPSG:' + (it.properties['proj:epsg'] || ('326' + (it.properties['mgrs:utm_zone'] || zone))));
+    const rd = async (asset) => {
+      const a = it.assets[asset]; if (!a) throw new Error(asset + ' 밴드 없음');
+      const tf = await GeoTIFF.fromUrl(a.href, { allowFullFile: false }), img = await tf.getImage(), bb = img.getBoundingBox(), rs = img.getResolution();
+      const eI = ic === crs ? eU : ol.proj.transformExtent(eU, crs, ic);
+      const wx0 = Math.max(0, Math.floor((eI[0] - bb[0]) / rs[0]) - 1), wy0 = Math.max(0, Math.floor((bb[3] - eI[3]) / -rs[1]) - 1);
+      const wx1 = Math.min(img.getWidth(), Math.ceil((eI[2] - bb[0]) / rs[0]) + 1), wy1 = Math.min(img.getHeight(), Math.ceil((bb[3] - eI[1]) / -rs[1]) + 1);
+      if (wx1 <= wx0 || wy1 <= wy0) return null;
+      const rr = await img.readRasters({ window: [wx0, wy0, wx1, wy1], samples: [0], interleave: true });
+      const band = (a['raster:bands'] || [])[0] || {}, base = it.properties['s2:processing_baseline'];
+      return { v: rr, ww: wx1 - wx0, wh: wy1 - wy0, ox: bb[0] + wx0 * rs[0], oy: bb[3] + wy0 * rs[1], rx: rs[0], ry: -rs[1], sc: band.scale || 1e-4, of: it.properties['earthsearch:boa_offset_applied'] ? 0 : band.offset != null ? band.offset : (base && base >= '04.00' ? -0.1 : 0) }; // Earth Search는 대부분 보정값(-0.1)을 이미 적용해 둠
+    };
+    const [red, nir, scl] = await Promise.all([rd('red'), rd('nir'), rd('scl').catch(() => null)]);
+    if (!red || !nir) continue;
+    const tr = ic === crs ? null : ol.proj.getTransform(crs, ic);
+    for (let j = 0; j < h; j++) {
+      for (let i = 0; i < w; i++) {
+        const o = j * w + i; if (data[o] !== ND_NODATA) continue;
+        let X = x0 + (i + 0.5) * R, Y = y1 - (j + 0.5) * R; if (tr) [X, Y] = tr([X, Y]);
+        const c = Math.floor((X - red.ox) / red.rx), r = Math.floor((red.oy - Y) / red.ry); if (c < 0 || r < 0 || c >= red.ww || r >= red.wh) continue;
+        const dr = red.v[r * red.ww + c], dn = nir.v[r * nir.ww + c]; if (!dr || !dn) continue;
+        if (scl) { const sc2 = Math.floor((X - scl.ox) / scl.rx), sr = Math.floor((scl.oy - Y) / scl.ry); if (sc2 >= 0 && sr >= 0 && sc2 < scl.ww && sr < scl.wh && !okScl[scl.v[sr * scl.ww + sc2]]) continue; }
+        const fr = dr * red.sc + red.of, fn = dn * nir.sc + nir.of; if (fr + fn <= 0.01) continue;
+        data[o] = Math.round(10000 * Math.max(-1, Math.min(1, (fn - fr) / (fn + fr))));
+      }
+      if ((j & 255) === 255) await tick();
+    }
+  }
+  let nv = 0; for (let i = 0; i < data.length; i++) if (data[i] !== ND_NODATA) nv++;
+  if (nv < data.length * 0.3) throw new Error(`${pick.d} 장면이 구름·그림자로 대부분 가려져 쓸 수 없음`);
+  setTask(`${tag} — 지도에 그리는 중`, 95);
+  const id = 'N' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
+  const L = await addNdviLayer({ id, cat: 'veg', name: `Sentinel-2 NDVI ${pick.d}`, src: 's2', date: pick.d, cc: Math.round(pick.cc), res: 10, crs, gt: [x0, R, y1, -R], w, h, data, order: Date.now(), note: `구름 ${Math.round(pick.cc)}% · 가려진 곳 ${Math.round(100 - 100 * nv / data.length)}% 제외` });
+  clearTask(`Sentinel-2 NDVI ${pick.d} 불러옴`);
+  return L;
+}
+
+// 근적외 밴드가 든 GeoTIFF(국토위성·아리랑·항공·드론 4~5밴드) 또는 NDVI 단일 밴드 GeoTIFF 올리기
+async function addNdviTif(file) {
+  try {
+    setTask(file.name + ' 읽는 중', 5);
+    const tf = await GeoTIFF.fromBlob(file), img = await tf.getImage(), spp = img.getSamplesPerPixel(), W0 = img.getWidth(), H0 = img.getHeight();
+    if (img.getFileDirectory().ModelTransformation) throw new Error('회전된 영상은 지원하지 않음');
+    const gk = img.getGeoKeys() || {}; let code = gk.ProjectedCSTypeGeoKey || gk.GeographicTypeGeoKey; code = code && code !== 32767 ? 'EPSG:' + code : null;
+    if (code && !ndCrs(code)) code = null;
+    if (!code) { code = await askCRS(file.name); if (!code) { clearTask('취소됨'); return; } }
+    const ch = await new Promise((res) => {
+      const g4 = spp >= 4, defR = spp === 4 ? 3 : spp >= 5 ? 3 : 1, defN = spp >= 4 ? (spp === 4 ? 4 : spp) : 1;
+      const opts = (sel) => Array.from({ length: spp }, (_, i) => `<option value="${i + 1}" ${i + 1 === sel ? 'selected' : ''}>${i + 1}번 밴드</option>`).join('');
+      modal(`<h3>식생지수 자료 — ${esc(file.name)}</h3><div class="note" style="margin-top:0">밴드 ${spp}개 · ${fmt(W0)}×${fmt(H0)} 화소 · ${esc(code)}</div>
+        <label class="f">자료 형식</label><select class="sel" id="ndK" style="width:100%"><option value="bands" ${spp > 1 ? 'selected' : ''}>적색·근적외(NIR) 밴드가 든 다중밴드 영상 → NDVI 계산</option><option value="ndvi" ${spp === 1 ? 'selected' : ''}>이미 계산된 NDVI 단일 밴드</option></select>
+        <div id="ndB" style="margin-top:8px"><label class="f">밴드 순서 예</label><select class="sel" id="ndP" style="width:100%"><option value="">직접 고름</option>${g4 ? '<option value="3,4">청·녹·적·근적외 (국토위성·아리랑·드론 다수)</option><option value="1,4">적·녹·청·근적외 (항공 4밴드·NAIP 등)</option>' : ''}${spp >= 5 ? `<option value="3,5">청·녹·적·적색경계·근적외 (마이카센스 등 5밴드)</option>` : ''}</select>
+        <div class="row" style="margin-top:6px;gap:10px"><label>적색 <select class="sel" id="ndR">${opts(defR)}</select></label><label>근적외 <select class="sel" id="ndN">${opts(defN)}</select></label></div></div>
+        <div class="row" style="justify-content:flex-end;margin-top:14px"><button class="btn" id="ndX">취소</button><button class="btn pri" id="ndO">NDVI 만들기</button></div>`, (b) => {
+        const sync = () => { $('#ndB', b).style.display = $('#ndK', b).value === 'bands' ? '' : 'none'; };
+        $('#ndK', b).onchange = sync; sync();
+        $('#ndP', b).onchange = () => { const v = $('#ndP', b).value; if (v) { const [r, n] = v.split(','); $('#ndR', b).value = r; $('#ndN', b).value = n; } };
+        if (spp === 4) $('#ndP', b).value = '3,4';
+        $('#ndX', b).onclick = () => { closeModal(); res(null); };
+        $('#ndO', b).onclick = () => { const v = { kind: $('#ndK', b).value, r: +$('#ndR', b).value - 1, n: +$('#ndN', b).value - 1 }; closeModal(); res(v); };
+      });
+    });
+    if (!ch) { clearTask('취소됨'); return; }
+    if (ch.kind === 'bands' && ch.r === ch.n) throw new Error('적색과 근적외 밴드가 같음');
+    const sc = Math.max(1, Math.sqrt(W0 * H0 / ND_MAXPX)), w = Math.max(1, Math.round(W0 / sc)), h = Math.max(1, Math.round(H0 / sc));
+    setTask(`${file.name} — 밴드 읽는 중${sc > 1 ? ` (${fmt(sc, 1)}배 줄여 읽음)` : ''}`, 30);
+    const samples = ch.kind === 'bands' ? [ch.r, ch.n] : [0];
+    const rr = await img.readRasters({ samples, width: w, height: h, resampleMethod: 'bilinear' });
+    const nd = img.getGDALNoData(), data = new Int16Array(w * h).fill(ND_NODATA);
+    if (ch.kind === 'bands') {
+      const R = rr[0], N = rr[1];
+      for (let i = 0; i < w * h; i++) { const r = R[i], n = N[i]; if ((nd != null && (r === nd || n === nd)) || !(r + n > 0)) continue; data[i] = Math.round(10000 * (n - r) / (n + r)); }
+    } else {
+      const V = rr[0]; let mx = -Infinity, mn = Infinity; for (let i = 0; i < V.length; i += 13) { const v = V[i]; if (nd != null && v === nd) continue; if (isFinite(v)) { if (v > mx) mx = v; if (v < mn) mn = v; } }
+      const f = mx <= 1.5 ? (v) => v : mx <= 255 && mn >= 0 ? (v) => v / 127.5 - 1 : mx <= 10000 ? (v) => v / 10000 : (v) => v / 32767; // 값 범위로 NDVI 배율 짐작
+      for (let i = 0; i < V.length; i++) { const v = V[i]; if ((nd != null && v === nd) || !isFinite(v)) continue; data[i] = Math.round(10000 * Math.max(-1, Math.min(1, f(v)))); }
+    }
+    const bb = img.getBoundingBox(), dx = (bb[2] - bb[0]) / w, dy = (bb[3] - bb[1]) / h;
+    let resM = dx; if (/^EPSG:4326$|^EPSG:4019$|^EPSG:4737$/.test(code)) resM = dx * 111320 * Math.cos(((bb[1] + bb[3]) / 2) * Math.PI / 180);
+    const id = 'N' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
+    const L = await addNdviLayer({ id, cat: 'veg', name: file.name.replace(/\.tiff?$/i, '') + ' NDVI', src: 'tif', res: +resM.toFixed(2), crs: code, gt: [bb[0], dx, bb[3], -dy], w, h, data, order: Date.now(), note: ch.kind === 'bands' ? `적색 ${ch.r + 1}·근적외 ${ch.n + 1}번 밴드로 계산` : 'NDVI 단일 밴드' });
+    if (!L) return;
+    const st = ndStats(L);
+    view.fit(L.extent, { padding: [30, 30, 30, 30], duration: 300 });
+    clearTask(`${L.name} 불러옴`);
+    toast(`${L.name}: 화소 ${fmt(L.res, 2)} m · NDVI 중앙값 ${st.p50.toFixed(2)} (하위 10% ${st.p10.toFixed(2)} ~ 상위 10% ${st.p90.toFixed(2)})${st.p90 < 0.3 ? ' — 값이 낮음: 밴드 순서를 확인할 것' : ''}`, st.p90 < 0.3 ? 'warn' : '');
+  } catch (e) { console.error(e); clearTask('불러오기 실패'); toast(`${file.name} 불러오기 실패: ${e.message}`, 'err'); }
+}
+// 범위를 가장 잘 덮는 식생지수 자료: 고해상(3 m 이하) 자료 우선
+function ndviPick(ext3857) {
+  const A = ol.extent.getArea(ext3857) || 1, cov = (L) => { const i = ol.extent.getIntersection(L.ext3857, ext3857); return ol.extent.isEmpty(i) ? 0 : ol.extent.getArea(i) / A; };
+  const ls = S.layers.filter((l) => l.kind === 'ndvi').map((L) => ({ L, c: cov(L) }));
+  const fine = ls.filter((x) => x.L.res <= 3 && x.c >= 0.3).sort((a, b) => b.c - a.c)[0];
+  if (fine) return fine.L;
+  const co = ls.filter((x) => x.c >= 0.8).sort((a, b) => (b.L.order || 0) - (a.L.order || 0))[0];
+  return co ? co.L : null;
+}
+// 영상 판독 블록(웹메르카토르 화소 격자)에 NDVI를 겹쳐 같은 크기 배열로 — 자료 없는 곳은 NaN
+function ndviForBlock(L, ox, oy, res, W, H) {
+  const be = [ox, oy - H * res, ox + W * res, oy]; if (!ol.extent.intersects(be, L.ext3857)) return null;
+  const tr = ol.proj.getTransform('EPSG:3857', L.crs), S2 = 32, nx = Math.ceil(W / S2) + 1, ny = Math.ceil(H / S2) + 1, gx = new Float64Array(nx * ny), gy = new Float64Array(nx * ny);
+  for (let j = 0; j < ny; j++) for (let i = 0; i < nx; i++) { const p = tr([ox + i * S2 * res, oy - j * S2 * res]); gx[j * nx + i] = (p[0] - L.gt[0]) / L.gt[1]; gy[j * nx + i] = (p[1] - L.gt[2]) / L.gt[3]; }
+  const out = new Float32Array(W * H).fill(NaN), D = L.data, w = L.w, h = L.h, bil = L.res > 3; let any = false;
+  for (let y = 0; y < H; y++) {
+    const j = Math.floor(y / S2), fy = (y - j * S2) / S2;
+    for (let x = 0; x < W; x++) {
+      const i = Math.floor(x / S2), fx = (x - i * S2) / S2, k = j * nx + i;
+      const cx = (gx[k] * (1 - fx) + gx[k + 1] * fx) * (1 - fy) + (gx[k + nx] * (1 - fx) + gx[k + nx + 1] * fx) * fy;
+      const cy = (gy[k] * (1 - fx) + gy[k + 1] * fx) * (1 - fy) + (gy[k + nx] * (1 - fx) + gy[k + nx + 1] * fx) * fy;
+      let v;
+      if (bil) { // 10 m 자료는 부드럽게 보간
+        const u = cx - 0.5, t = cy - 0.5, c0 = Math.floor(u), r0 = Math.floor(t); if (c0 < 0 || r0 < 0 || c0 + 1 >= w || r0 + 1 >= h) continue;
+        const a = D[r0 * w + c0], b = D[r0 * w + c0 + 1], c = D[(r0 + 1) * w + c0], d = D[(r0 + 1) * w + c0 + 1];
+        if (a === ND_NODATA || b === ND_NODATA || c === ND_NODATA || d === ND_NODATA) { const nn = D[Math.floor(cy) * w + Math.floor(cx)]; if (nn === ND_NODATA) continue; v = nn; }
+        else { const uu = u - c0, tt = t - r0; v = (a * (1 - uu) + b * uu) * (1 - tt) + (c * (1 - uu) + d * uu) * tt; }
+      } else { const c0 = Math.floor(cx), r0 = Math.floor(cy); if (c0 < 0 || r0 < 0 || c0 >= w || r0 >= h) continue; v = D[r0 * w + c0]; if (v === ND_NODATA) continue; }
+      out[y * W + x] = v / 10000; any = true;
+    }
+  }
+  return any ? out : null;
+}
+async function ndviLoadUI(where, season) {
+  let ext;
+  const o = curOut();
+  if (where === 'area' && o && o.area && AREA_TYPES[o.area.type]) {
+    try { const polys = await areaPolys(o), e4 = ol.extent.createEmpty(); polys.forEach((p) => p[0].forEach((q) => ol.extent.extendCoordinate(e4, q))); ext = ol.proj.transformExtent(e4, 'EPSG:4326', 'EPSG:3857'); }
+    catch (e) { toast('작업 구역을 읽지 못해 지금 화면 범위로 불러옴: ' + e.message, 'warn'); }
+  }
+  if (!ext) ext = ol.proj.transformExtent(view.calculateExtent(map.getSize()), S.crs, 'EPSG:3857');
+  try { const L = await loadS2Ndvi(ext, { season }); const st = ndStats(L); toast(`${L.name} (${L.note}) · NDVI 중앙값 ${st.p50.toFixed(2)} — 임도 따기에서 식생·비식생 구분에 함께 씀`); return L; }
+  catch (e) { clearTask('NDVI 불러오기 실패'); toast('Sentinel-2 NDVI 불러오기 실패: ' + e.message, 'err'); return null; }
+}
+
 // ---------- 레이어 ----------
 function hashColor(s) { let h = 0; s = String(s); for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0; const hue = Math.abs(h) % 360; return `hsl(${hue},${55 + Math.abs(h >> 8) % 25}%,${52 + Math.abs(h >> 16) % 16}%)`; }
 function autoColor(code) {
@@ -1835,8 +2042,8 @@ async function askCRS(name) {
 async function addFiles(cid, fileList) {
   const files = [...fileList];
   const tifs = files.filter((f) => /\.tiff?$/i.test(f.name));
-  if (tifs.length && !(CAT[cid].raster || CAT[cid].vecRaster)) { toast('GeoTIFF 영상은 “위성·항공영상” 또는 “과거지도” 탭에 올릴 것', 'warn'); return; }
-  for (const f of tifs) await addRaster(f, null, cid);
+  if (tifs.length && !(CAT[cid].raster || CAT[cid].vecRaster || CAT[cid].ndvi)) { toast('GeoTIFF 영상은 “위성·항공영상”·“과거지도” 탭, 근적외(NIR)·NDVI 영상은 “현존식생” 탭에 올릴 것', 'warn'); return; }
+  for (const f of tifs) { if (CAT[cid].ndvi) await addNdviTif(f); else await addRaster(f, null, cid); }
   const groups = new Map();
   for (const f of files) {
     if (/\.tiff?$/i.test(f.name)) continue;
@@ -1914,7 +2121,7 @@ async function buildFeatures(L, r) {
 function syncVecGroup() {
   const arr = S.layers.filter((l) => l.kind === 'vector').map((l) => l.ol);
   vecGroup.getLayers().clear(); arr.forEach((l) => vecGroup.getLayers().push(l));
-  const rs = S.layers.filter((l) => l.kind === 'raster').map((l) => l.ol);
+  const rs = S.layers.filter((l) => l.kind === 'raster' || l.kind === 'ndvi').map((l) => l.ol);
   rasterGroup.getLayers().clear(); rs.forEach((l) => rasterGroup.getLayers().push(l));
 }
 async function removeLayer(L) {
@@ -1963,14 +2170,18 @@ function loadOutputs() {
     }
     LS.set('gb2.critver', 3); LS.set('gb2.outputs', out.map(({ run, exported, ...o }) => o));
   }
-  if (LS.get('gb2.critver', 1) < 5) { // 5판: 임도는 숲 가장자리에서 15 m 떨어진 곳만
-    out.forEach((o) => (o.criteria || []).forEach((c) => { if (c.op === 'imgroad') c.p = { ...(c.p || {}), edge: 15 }; }));
-    LS.set('gb2.critver', 5); LS.set('gb2.outputs', out.map(({ run, exported, ...o }) => o));
-  }
   if (LS.get('gb2.critver', 1) < 4) { // 4판: 영상 경계선에 맞춰 경계 옮기기 추가
     const b = out.find((o) => o.id === 'biotope');
     if (b && !b.criteria.some((c) => c.op === 'imgsnap')) { const d = CRIT_DEFAULTS.biotope.find((c) => c.op === 'imgsnap'); const i = b.criteria.findIndex((c) => c.op === 'imgchange' || c.op === 'minarea' || c.op === 'memo'); b.criteria.splice(i < 0 ? b.criteria.length : i, 0, JSON.parse(JSON.stringify(d))); }
     LS.set('gb2.critver', 4); LS.set('gb2.outputs', out.map(({ run, exported, ...o }) => o));
+  }
+  if (LS.get('gb2.critver', 1) < 5) { // 5판: 임도는 숲 가장자리에서 15 m 떨어진 곳만
+    out.forEach((o) => (o.criteria || []).forEach((c) => { if (c.op === 'imgroad') c.p = { ...(c.p || {}), edge: 15 }; }));
+    LS.set('gb2.critver', 5); LS.set('gb2.outputs', out.map(({ run, exported, ...o }) => o));
+  }
+  if (LS.get('gb2.critver', 1) < 6) { // 6판: 임도 따기에 식생지수(NIR·NDVI) 참고
+    out.forEach((o) => (o.criteria || []).forEach((c) => { if (c.op === 'imgroad') { c.p = { ndvi: 'auto', ...(c.p || {}) }; if (c.text && !/NDVI/.test(c.text)) c.text += ' 근적외(NIR)로 계산한 NDVI로 식생과 비식생을 함께 확인함.'; } }));
+    LS.set('gb2.critver', 6); LS.set('gb2.outputs', out.map(({ run, exported, ...o }) => o));
   }
   return out;
 }
@@ -2021,10 +2232,21 @@ function renderPanel() {
     h += `<div class="bm">${BASEMAPS.map((g) => `<div class="g">${esc(g.g)}</div>` + g.items.map(([v, t]) => `<label class="${S.basemap === v ? 'on' : ''}"><input type="radio" name="bm" value="${v}" ${S.basemap === v ? 'checked' : ''}> ${esc(t)}</label>`).join('')).join('')}</div>
       <div class="drop" id="drop"><b>GeoTIFF 정사영상 올리기</b>끌어다 놓거나 클릭 (.tif) — 표시용</div>`;
   } else {
-    h += `<div class="drop" id="drop"><b>파일을 끌어다 놓거나 클릭</b>SHP(.shp·.dbf·.prj·.cpg 함께 또는 ZIP) · GeoJSON<br>여러 파일·대용량 가능 — 백그라운드에서 처리</div>`;
+    h += `<div class="drop" id="drop"><b>파일을 끌어다 놓거나 클릭</b>SHP(.shp·.dbf·.prj·.cpg 함께 또는 ZIP) · GeoJSON${c.ndvi ? ' · 근적외(NIR)·NDVI GeoTIFF' : ''}<br>여러 파일·대용량 가능 — 백그라운드에서 처리</div>`;
+  }
+  if (c.ndvi) {
+    const hasArea = (() => { const o = curOut(); return !!(o && o.area && AREA_TYPES[o.area.type]); })();
+    h += `<div class="ndbox"><b>식생지수(NIR·NDVI) 자료</b><p>근적외선(NIR)으로 계산한 NDVI로 식생과 비식생(도로·맨땅·시가지)을 가름. 임도 따기에서 영상 색·질감 판독과 함께 참고함.</p>
+      <div class="row" style="gap:6px;flex-wrap:wrap"><select class="sel" id="ndWhere"><option value="view">지금 화면 범위</option>${hasArea ? '<option value="area" selected>작업 구역 범위</option>' : ''}</select><select class="sel" id="ndSeason"><option value="leaf">생장기(6~9월) 최신 장면</option><option value="latest">최근 150일 최신 장면</option></select></div>
+      <button class="btn" id="ndS2" style="width:100%;margin-top:6px">Sentinel-2 NDVI 불러오기 (10 m · 키 불필요)</button>
+      <div class="drop" id="ndDrop" style="margin-top:8px"><b>근적외 밴드 영상 올리기</b>국토위성·아리랑·항공·드론 4~5밴드 GeoTIFF 또는 NDVI GeoTIFF (.tif)</div>
+      <div class="ndleg"><span>비식생</span><i></i><span>식생</span></div>
+      <div class="m">10 m 자료는 폭 3~6 m 임도를 직접 그리지는 못하고, 판독한 임도 후보가 정말 숲 속 비식생인지·주변이 숲인지 확인하는 데 씀. 3 m 이하 고해상 자료를 올리면 화소 단위로 함께 판독함.</div></div>`;
   }
   if (!ls.length) h += `<div class="empty">아직 올린 자료 없음</div>`;
-  h += ls.map((L) => L.kind === 'raster' ? `<div class="lyr" data-id="${L.id}"><div class="h"><input type="checkbox" data-a="vis" ${L.visible ? 'checked' : ''}><b title="${esc(L.name)}">${esc(L.name)}</b><button class="ib" data-a="zoom" title="이 영상으로 이동">⌖</button><button class="ib" data-a="del" title="삭제">✕</button></div>
+  h += ls.map((L) => L.kind === 'ndvi' ? `<div class="lyr" data-id="${L.id}"><div class="h"><input type="checkbox" data-a="vis" ${L.visible ? 'checked' : ''}><b title="${esc(L.name)}">${esc(L.name)}</b><button class="ib" data-a="zoom" title="이 자료로 이동">⌖</button><button class="ib" data-a="del" title="삭제">✕</button></div>
+      <div class="m">NDVI · 화소 ${fmt(L.res, L.res < 3 ? 2 : 0)} m · ${fmt(L.w)}×${fmt(L.h)} · ${esc(L.crs)}${L.note ? ' · ' + esc(L.note) : ''}</div><div class="r">투명도<input type="range" min="0" max="1" step="0.05" value="${L.opacity}" data-a="op"></div></div>`
+    : L.kind === 'raster' ? `<div class="lyr" data-id="${L.id}"><div class="h"><input type="checkbox" data-a="vis" ${L.visible ? 'checked' : ''}><b title="${esc(L.name)}">${esc(L.name)}</b><button class="ib" data-a="zoom" title="이 영상으로 이동">⌖</button><button class="ib" data-a="del" title="삭제">✕</button></div>
       <div class="m">GeoTIFF · ${fmt(L.size / 1048576, 1)} MB</div><div class="r">투명도<input type="range" min="0" max="1" step="0.05" value="${L.opacity}" data-a="op"></div></div>`
     : `<div class="lyr" data-id="${L.id}"><div class="h"><input type="checkbox" data-a="vis" ${L.visible ? 'checked' : ''}><input type="color" class="sw" value="${esc(L.color)}" data-a="col" title="색"><b title="${esc(L.name)}">${esc(L.name)}</b><button class="ib" data-a="zoom" title="이 자료로 이동">⌖</button><button class="ib" data-a="del" title="삭제">✕</button></div>
       <div class="m">${{ poly: '면', line: '선', point: '점' }[L.geom]} ${fmt(L.n)}개 · ${L.srcCrs} · ${fmt((L.size || 0) / 1048576, 1)} MB · 변수 <b>${esc(varKey(L))}</b></div>
@@ -2033,8 +2255,15 @@ function renderPanel() {
       ${L.col ? `<div class="m" style="margin-top:6px">값 예: ${esc(sampleVals(L).join(' · '))}</div>` : ''}</div>`).join('');
   h += `<div class="empty" id="store"></div>`;
   const p = $('#lpanel'); p.innerHTML = h;
-  const drop = $('#drop', p), inp = document.createElement('input'); inp.type = 'file'; inp.multiple = true; inp.accept = c.raster ? '.tif,.tiff' : '.shp,.dbf,.prj,.cpg,.shx,.zip,.geojson,.json' + (c.vecRaster ? ',.tif,.tiff' : '');
+  const drop = $('#drop', p), inp = document.createElement('input'); inp.type = 'file'; inp.multiple = true; inp.accept = c.raster ? '.tif,.tiff' : '.shp,.dbf,.prj,.cpg,.shx,.zip,.geojson,.json' + (c.vecRaster || c.ndvi ? ',.tif,.tiff' : '');
   inp.onchange = () => addFiles(c.id, inp.files);
+  if (c.ndvi) {
+    const nd = $('#ndDrop', p), ni = document.createElement('input'); ni.type = 'file'; ni.multiple = true; ni.accept = '.tif,.tiff';
+    ni.onchange = () => addFiles(c.id, ni.files); nd.onclick = () => ni.click();
+    nd.ondragover = (e) => { e.preventDefault(); nd.classList.add('over'); }; nd.ondragleave = () => nd.classList.remove('over');
+    nd.ondrop = (e) => { e.preventDefault(); nd.classList.remove('over'); addFiles(c.id, e.dataTransfer.files); };
+    $('#ndS2', p).onclick = async (e) => { const b = e.currentTarget; b.disabled = true; b.textContent = 'Sentinel-2 NDVI 불러오는 중…'; await ndviLoadUI($('#ndWhere', p).value, $('#ndSeason', p).value); renderPanel(); };
+  }
   drop.onclick = () => inp.click();
   drop.ondragover = (e) => { e.preventDefault(); drop.classList.add('over'); };
   drop.ondragleave = () => drop.classList.remove('over');
@@ -2146,7 +2375,7 @@ const CRIT_NEW = {
   replace: () => ({ layerCat: 'lc', layer: '', filt: '', minWidth: 0, minArea: 0, code: '', name: '', chk: false }),
   absorb: () => ({ tgt: '', maxWidth: 5, maxArea: 0, nbr: '', surround: 50, chk: true }),
   minarea: () => ({ maxArea: 100 }),
-  imgroad: () => ({ allow: '3,E,림', scope: 'all', zoom: 18, sens: 2, maxWidth: 12, minLen: 40, minArea: 60, edge: 15, width: 0, gap: 40, code: 'B12', name: '임도', chk: true }),
+  imgroad: () => ({ allow: '3,E,림', scope: 'all', zoom: 18, sens: 2, maxWidth: 12, minLen: 40, minArea: 60, edge: 15, width: 0, gap: 40, ndvi: 'auto', code: 'B12', name: '임도', chk: true }),
   linecut: () => ({ layerCat: 'road', layer: '', filt: '', width: 4, allow: '3,E,림', code: 'B12', name: '임도', chk: false }),
   imgchange: () => ({ allow: '', scope: 'all', zoom: 17, sens: 3, minArea: 300, edge: 3, chk: true }),
   imgsnap: () => ({ allow: '', scope: 'all', zoom: 17, band: 12, sens: 3, minArea: 30, chk: true }),
@@ -2161,7 +2390,7 @@ function critParamsHTML(c, base) {
   const layerSel = (geom) => { const ls = S.layers.filter((l) => l.kind === 'vector' && l.geom === geom); return `<label>${geom === 'point' ? '점 자료' : geom === 'line' ? '선 자료' : '따를 자료'}<select class="sel" data-p="layer" style="width:230px"><option value="">자동 — “${esc(CAT[p.layerCat || (geom === 'point' ? 'etc' : geom === 'line' ? 'road' : 'lc')].name)}” 탭의 첫 ${geom === 'point' ? '점' : geom === 'line' ? '선' : '면'} 자료</option>${ls.map((l) => `<option value="${l.id}" ${l.id === p.layer ? 'selected' : ''}>${esc(CAT[l.cat].name)} · ${esc(l.name)} (판정 필드 ${esc(l.field)})</option>`).join('')}</select></label>`; };
   if (c.op === 'cluster') return layerSel('point') + F('filt', '값에 포함된 글자', 90, '예: 묘') + F('minN', '최소 개수', 50, '', 'n') + F('dist', '묶음 거리(m)', 60, '', 'n') + F('buf', '경계 여유(m)', 60, '', 'n') + F('allow', '허용 대상 값 앞자리', 100, '예: 3,4,6') + PICK('allow') + F('minArea', '최소 면적(㎡)', 70, '', 'n') + F('code', '적용 유형 코드', 70, '예: F22') + F('name', '유형 명칭', 90, '예: 묘지') + CK('chk', '검토 필요(영상 확인) 표시');
   const PICK = (k) => base ? `<button class="btn" type="button" data-pick="${k}" style="align-self:flex-end;padding:5px 9px">▾ 값 목록에서 고르기</button><div class="vp hidden" data-vp="${k}"></div>` : '';
-  if (c.op === 'imgroad') return F('allow', '자를 대상(산림) 값 앞자리·글자', 120, '예: 3,E,림') + PICK('allow') + SEL('scope', '판독 범위', [['all', '자를 대상 폴리곤 전체'], ['view', '지금 지도 화면 안만']]) + SEL('zoom', '영상 해상도', [[18, '약 0.5 m (권장)'], [17, '약 1 m (4배 빠름, 좁은 임도는 놓침)']]) + F('sens', '밝기 기준(낮을수록 많이 찾음)', 60, '', 'n') + F('maxWidth', '최대 폭(m)', 60, '', 'n') + F('minLen', '최소 길이(m)', 60, '', 'n') + F('minArea', '최소 면적(㎡)', 60, '', 'n') + F('edge', '숲 가장자리에서 떨어질 거리(m)', 60, '', 'n') + F('width', '임도 폭(m, 0=검출 폭 중앙값으로 통일)', 60, '', 'n') + F('gap', '끊긴 도로 이을 최대 간격(m)', 60, '', 'n') + F('code', '적용 유형 코드', 70, '예: B12') + F('name', '유형 명칭', 90, '예: 임도') + CK('chk', '검토 필요(영상 확인) 표시');
+  if (c.op === 'imgroad') return F('allow', '자를 대상(산림) 값 앞자리·글자', 120, '예: 3,E,림') + PICK('allow') + SEL('scope', '판독 범위', [['all', '자를 대상 폴리곤 전체'], ['view', '지금 지도 화면 안만']]) + SEL('zoom', '영상 해상도', [[18, '약 0.5 m (권장)'], [17, '약 1 m (4배 빠름, 좁은 임도는 놓침)']]) + F('sens', '밝기 기준(낮을수록 많이 찾음)', 60, '', 'n') + F('maxWidth', '최대 폭(m)', 60, '', 'n') + F('minLen', '최소 길이(m)', 60, '', 'n') + F('minArea', '최소 면적(㎡)', 60, '', 'n') + F('edge', '숲 가장자리에서 떨어질 거리(m)', 60, '', 'n') + F('width', '임도 폭(m, 0=검출 폭 중앙값으로 통일)', 60, '', 'n') + F('gap', '끊긴 도로 이을 최대 간격(m)', 60, '', 'n') + SEL('ndvi', '식생지수(NIR·NDVI) 참고', [['auto', '현존식생 탭 자료 우선, 없으면 Sentinel-2 자동'], ['upload', '현존식생 탭에 올린 자료만'], ['off', '쓰지 않음(영상 색만)']]) + F('code', '적용 유형 코드', 70, '예: B12') + F('name', '유형 명칭', 90, '예: 임도') + CK('chk', '검토 필요(영상 확인) 표시');
   if (c.op === 'imgchange') return F('allow', '살펴볼 폴리곤 값(비우면 전부)', 130, '비우면 전부') + PICK('allow') + SEL('scope', '판독 범위', [['all', '기준 경계 전체'], ['view', '지금 지도 화면 안만']]) + SEL('zoom', '영상 해상도', [[17, '약 1 m (권장)'], [18, '약 0.5 m (4배 느림)']]) + F('sens', '민감도(낮을수록 많이 찾음, 2~5)', 60, '', 'n') + F('minArea', '최소 면적(㎡)', 70, '', 'n') + F('edge', '경계선 둘레 무시 폭(m)', 60, '', 'n') + CK('chk', '검토 필요(영상 확인) 표시');
   if (c.op === 'imgsnap') return F('allow', '옮길 폴리곤 값(비우면 전부)', 130, '비우면 전부') + PICK('allow') + SEL('scope', '판독 범위', [['all', '기준 경계 전체'], ['view', '지금 지도 화면 안만']]) + SEL('zoom', '영상 해상도', [[17, '약 1 m (권장)'], [18, '약 0.5 m (4배 느림)']]) + F('band', '경계에서 옮길 수 있는 폭(m)', 60, '', 'n') + F('sens', '민감도(낮을수록 많이 옮김, 1~5)', 60, '', 'n') + F('minArea', '최소 옮길 면적(㎡)', 70, '', 'n') + CK('chk', '옮긴 폴리곤에 검토 필요 표시');
   if (c.op === 'split') return layerSel('poly') + F('filt', '값 앞자리 조건', 90, '비우면 전부') + F('allow', '나눌 대상 값(비우면 전부)', 110, '') + PICK('allow') + F('minArea', '한쪽이 이보다 작으면 안 나눔(㎡)', 70, '', 'n') + CK('chk', '검토 필요 표시');
@@ -2299,7 +2528,7 @@ function guideHTML() {
 
 
 // ---------- 실시간 진행 표시(지도 위) ----------
-const APP_VER = '2026.11.19-6';
+const APP_VER = '2026.11.20-1';
 const LIVE = { src: new ol.source.Vector({ wrapX: false }) };
 LIVE.styles = {
   tgt: new ol.style.Style({ stroke: new ol.style.Stroke({ color: 'rgba(255,255,255,.9)', width: 1.2, lineDash: [5, 4] }) }),
@@ -2391,10 +2620,22 @@ async function imgRoadExtract(o, c, base) {
   const blkF = new ol.Feature({ geometry: new ol.geom.Polygon([[[0, 0], [0, 0], [0, 0], [0, 0]]]), k: 'blk' }); LIVE.src.addFeature(blkF);
   let foundN = 0;
   liveMsg(`<b>${esc(c.title)}</b> — 산림 폴리곤 ${fmt(ids.length)}개 안에서 항공영상 판독 시작`);
-  const key = JSON.stringify(['road2', base.id, base.field, p.allow, vExt ? vExt.map((v) => Math.round(v)) : 'all', z, p.sens, p.maxWidth, p.minLen, p.minArea, p.edge, p.width, p.gap, 'v3']);
+  let tx0m = Infinity, tx1m = -Infinity, ty0m = Infinity, ty1m = -Infinity; for (const [x, y] of tiles.values()) { tx0m = Math.min(tx0m, x); tx1m = Math.max(tx1m, x); ty0m = Math.min(ty0m, y); ty1m = Math.max(ty1m, y); }
+  const pExt = ol.extent.createEmpty(); polys.forEach((q) => ol.extent.extend(pExt, q.e));
+  const tExt = ol.extent.getIntersection(vExt ? ol.extent.getIntersection(pExt, vExt) : pExt, [tx0m * tm - WM, WM - (ty1m + 1) * tm, (tx1m + 1) * tm - WM, WM - ty0m * tm]);
+  const ndMode = p.ndvi || 'auto'; let NL = ndMode === 'off' ? null : ndviPick(tExt);
+  const mkKey = () => JSON.stringify(['road2', base.id, base.field, p.allow, vExt ? vExt.map((v) => Math.round(v)) : 'all', z, p.sens, p.maxWidth, p.minLen, p.minArea, p.edge, p.width, p.gap, ndMode, NL ? NL.id : '-', 'v4']);
+  let key = mkKey();
   if (ROAD_CACHE.has(key)) { const cc = ROAD_CACHE.get(key); liveClear(); if (cc.geom && cc.geom.n) { const tmp = { geom: 'poly', name: '임도' }; await buildFeatures(tmp, cc.geom); tmp.features.forEach((ft) => LIVE.src.addFeature(new ol.Feature({ geometry: ft.getGeometry(), k: 'road' }))); } liveMsg(`<b>${esc(c.title)}</b> — 앞서 판독한 임도 ${fmt(cc.n)}개를 다시 씀`); return cc; }
   const maxTiles = +p.maxTiles || 15000;
   if (!(await confirmTiles(c, tiles.size, z))) throw { cancelled: true, msg: '영상 판독을 취소함' };
+  let ndWhy = '';
+  if (!NL && ndMode === 'auto') {
+    liveMsg(`<b>${esc(c.title)}</b> — 식생 구분용 Sentinel-2 근적외(NIR) 영상으로 NDVI 만드는 중`);
+    try { NL = await loadS2Ndvi(tExt, { label: `${c.title} — Sentinel-2 NDVI` }); key = mkKey(); }
+    catch (e) { ndWhy = e.message; toast(`${c.title}: NDVI를 못 불러와 영상 색·질감만으로 판독함 — ${e.message}`, 'warn'); }
+  } else if (!NL && ndMode === 'upload') ndWhy = '현존식생 탭에 이 범위를 덮는 NIR·NDVI 자료가 없음';
+  const ndSt = { rej: 0, ok: 0, nv: 0, blocks: 0 };
   // 8×8 타일 블록(+둘레 1타일 여유)씩 처리
   const BS = 8, blocks = new Map();
   for (const [x, y] of tiles.values()) { const k = Math.floor(x / BS) + ',' + Math.floor(y / BS); if (!blocks.has(k)) blocks.set(k, [Math.floor(x / BS), Math.floor(y / BS)]); }
@@ -2429,7 +2670,8 @@ async function imgRoadExtract(o, c, base) {
       mg.fill('evenodd');
     }
     const md = mg.getImageData(0, 0, W, H).data;
-    const comps = roadPixels(px, md, W, H, { hw, minLen, minA, sens, forest: autoForest, edgePx, spurPx: 25 / gres });
+    const ndB = NL ? ndviForBlock(NL, ox, oy, res, W, H) : null; if (ndB) ndSt.blocks++;
+    const comps = roadPixels(px, md, W, H, { hw, minLen, minA, sens, forest: autoForest, edgePx, spurPx: 25 / gres, nd: ndB, ndFine: !!(NL && NL.res <= 3), mpp: gres, st: ndSt });
     // 핵심 영역(둘레 여유 제외)만 직사각형으로 기록
     const c0 = 256, c1 = W - 256;
     for (const cm of comps) {
@@ -2462,11 +2704,12 @@ async function imgRoadExtract(o, c, base) {
   const r = await wjob({ type: 'roadline', id, lines: lines.map((a) => Float64Array.from(a)), hw: wid / 2, gap: p.gap == null ? 40 : +p.gap, debug: !!window.GB_DEBUG, tol: Math.max(1, gres * 2), minArea: +p.minArea || 0, label: p.name || '임도' }, (pct, t) => setTask(`${c.title} — ${t}`, 96 + pct * 0.04));
   const out_w = wid;
   if (r.dbg) window.GB_DEBUG_OUT = r.dbg;
-  const out = { id, n: r.n, width: out_w, tiles: fetched, need: tiles.size, geom: { coords: r.coords.slice(), ringStart: r.ringStart.slice(), featRing: r.featRing.slice(), outer: r.outer.slice(), n: r.n } };
+  const ndTxt = NL ? ` · NDVI 참고(${NL.name}${NL.res > 3 ? ', 10 m' : `, ${fmt(NL.res, 2)} m`})${ndSt.rej ? `: 식생으로 보여 뺀 후보 ${fmt(ndSt.rej)}개` : ''}` : ndWhy ? ' · NDVI 미사용' : '';
+  const out = { id, n: r.n, width: out_w, ndTxt, tiles: fetched, need: tiles.size, geom: { coords: r.coords.slice(), ringStart: r.ringStart.slice(), featRing: r.featRing.slice(), outer: r.outer.slice(), n: r.n } };
   if (r.n) { liveClear(); const tmp = { geom: 'poly', name: '임도' }; await buildFeatures(tmp, out.geom); tmp.features.forEach((ft) => LIVE.src.addFeature(new ol.Feature({ geometry: ft.getGeometry(), k: 'road' }))); }
   ROAD_CACHE.set(key, out);
   if (fetched < tiles.size * 0.5) toast(`영상 타일을 ${fmt(fetched)}/${fmt(tiles.size)}장만 받음 — 인터넷·브이월드 키 확인`, 'warn');
-  toast(`${c.title}: 영상 타일 ${fmt(fetched)}장 판독 → 숲 안쪽 임도 ${fmt(r.n)}개 · 폭 ${out_w} m로 통일${r.joined ? ` · 끊긴 곳 ${fmt(r.joined)}군데 이음` : ''}`);
+  toast(`${c.title}: 영상 타일 ${fmt(fetched)}장 판독 → 숲 안쪽 임도 ${fmt(r.n)}개 · 폭 ${out_w} m로 통일${r.joined ? ` · 끊긴 곳 ${fmt(r.joined)}군데 이음` : ''}${ndTxt}`);
   return out;
 }
 
@@ -2789,6 +3032,20 @@ function roadPixels(px, md, W, H, q) {
   for (let i = 0, j = 0; i < N; i++, j += 4) { if (md[j + 3] < 128 || px[j + 3] < 128) continue; M[i] = 1; const l = (px[j] * 77 + px[j + 1] * 150 + px[j + 2] * 29) >> 8; Lm[i] = l; hist[l]++; cnt++; }
   if (cnt < 4000) return [];
   const med = (h, n) => { let s = 0; for (let k = 0; k < 256; k++) { s += h[k]; if (s >= n / 2) return k; } return 255; };
+  // 식생지수(NDVI) 참고: 넓게 보아 식생이 아닌 곳(맨땅·시가지·휴경지)은 숲 안쪽에서 뺌
+  const nd = q.nd, ndQ = (sel, pp) => { const hh = new Uint32Array(2001); let n = 0; for (let i = 0; i < N; i += 3) { const v = nd[i]; if (v === v && sel(i)) { hh[Math.max(0, Math.min(2000, Math.round(v * 1000) + 1000))]++; n++; } } if (n < 200) return NaN; let a = 0; for (let k = 0; k <= 2000; k++) { a += hh[k]; if (a >= n * pp) return (k - 1000) / 1000; } return 1; };
+  let nonveg = null, ndF = null, pv = NaN, ndTr = NaN;
+  if (nd) {
+    pv = ndQ((i) => M[i], 0.75);
+    if (pv === pv) {
+      ndF = new Float32Array(N); for (let i = 0; i < N; i++) ndF[i] = nd[i] === nd[i] ? nd[i] : pv;
+      const t1 = new Float32Array(N), NB = boxMean(ndF, W, H, Math.max(3, Math.round(10 / q.mpp)), new Float32Array(N), t1), tNV = Math.min(0.4, pv - 0.3);
+      nonveg = new Uint8Array(N); let cut = 0;
+      for (let i = 0; i < N; i++) if (NB[i] < tNV && nd[i] === nd[i]) { nonveg[i] = 1; if (M[i]) { M[i] = 0; hist[Lm[i]]--; cnt--; cut++; } }
+      if (q.st) q.st.nv += cut;
+      if (cnt < 4000) return [];
+    }
+  }
   if (q.forest) { // 속성 없이: 주변(약 20 m)이 어둡고 녹색인 곳(숲)만 남김
     const Lf = new Float32Array(N), Gf = new Float32Array(N), tmp = new Float32Array(N), m0 = med(hist, cnt), gh0 = new Uint32Array(101);
     for (let i = 0, j = 0; i < N; i++, j += 4) { const gs = 100 * px[j + 1] / (px[j] + px[j + 1] + px[j + 2] + 1); Gf[i] = gs; if (M[i]) gh0[Math.min(100, Math.round(gs))]++; }
@@ -2810,6 +3067,15 @@ function roadPixels(px, md, W, H, q) {
   const gsT = g50 - g05 < 0.02 ? 1 : g50 - 0.4 * (g50 - g05); // 색이 옅은 영상은 밝기만으로 판단
   let C = new Uint8Array(N);
   for (let i = 0, j = 0; i < N; i++, j += 4) if (M[i] && Lm[i] > thr && px[j + 1] / (px[j] + px[j + 1] + px[j + 2] + 1) <= gsT) C[i] = 1;
+  const pvF = ndF ? ndQ((i) => M[i], 0.5) : NaN;
+  if (ndF && q.ndFine && pvF === pvF) { // 고해상 근적외 자료: 화소마다 NDVI로 도로(비식생)인지 함께 판단
+    ndTr = Math.min(0.35, pvF - 0.25);
+    for (let i = 0; i < N; i++) {
+      if (!M[i] || nd[i] !== nd[i]) continue;
+      if (C[i] && nd[i] > ndTr + 0.1) C[i] = 0; // 밝아도 식생이면 도로 아님(밝은 수관·초지)
+      else if (!C[i] && nd[i] < ndTr && Lm[i] > m) C[i] = 1; // 색은 비슷해도 식생이 아니면 도로 후보
+    }
+  }
   // 닫힘(3×3 팽창 → 침식)으로 작은 틈 메우기
   const dil = new Uint8Array(N), ero = new Uint8Array(N);
   for (let y = 1; y < H - 1; y++) for (let x = 1; x < W - 1; x++) { const i = y * W + x; if (C[i] || C[i - 1] || C[i + 1] || C[i - W] || C[i + W] || C[i - W - 1] || C[i - W + 1] || C[i + W - 1] || C[i + W + 1]) dil[i] = 1; }
@@ -2829,12 +3095,13 @@ function roadPixels(px, md, W, H, q) {
     for (let i = 0, j = 0; i < N; i++, j += 4) { const nc = M[i] && !C[i]; Ln[i] = nc ? Lm[i] : m; Gn[i] = nc ? px[j + 1] / (px[j] + px[j + 1] + px[j + 2] + 1) : g50; }
     const R = Math.max(4, Math.round(q.hw * 2)), bL = boxMean(Ln, W, H, R, new Float32Array(N), t1), bG = boxMean(Gn, W, H, R, Ln, t1);
     const colorOK = g50 - g05 >= 0.02, bad = new Uint8Array(N);
-    for (let i = 0; i < N; i++) if (!M[i] || bL[i] > m + 2.2 * sd || (colorOK && bG[i] < g50 - 0.55 * (g50 - g05))) bad[i] = 1;
+    for (let i = 0; i < N; i++) if (!M[i] || bL[i] > m + 2.2 * sd || (colorOK && bG[i] < g50 - 0.55 * (g50 - g05)) || (nonveg && nonveg[i])) bad[i] = 1;
     const DB = cham(bad, false);
     for (let i = 0; i < N; i++) if (C[i] && DB[i] / 3 <= q.edgePx) C[i] = 0;
   }
   // 8방향 연결 덩어리 → 길이·면적 거르기
   const DIN = cham(C, true); // 도로 안쪽 화소의 가장자리까지 거리(폭 재기용)
+  let NR = null;
   const lab = new Int32Array(N), stack = new Int32Array(N), out = [];
   let nl = 0;
   for (let s0 = 0; s0 < N; s0++) {
@@ -2852,8 +3119,18 @@ function roadPixels(px, md, W, H, q) {
     while (k < pix.length) { const y = (pix[k] / W) | 0, x0 = pix[k] % W; let x1 = x0 + 1; k++; while (k < pix.length && pix[k] === y * W + x1) { x1++; k++; } runs.push(y, x0, x1); }
     const sk = skeletonLines(pix, W, Math.max(q.spurPx || 0, 3 * w), Math.max(20, Math.PI * (q.hw * 1.5) ** 2));
     if (!sk.lines.length) continue;
-    let sd2 = 0, nd = 0; for (const ln of sk.lines) for (let t = 0; t < ln.length; t += 2) { const ii = Math.floor(ln[t + 1]) * W + Math.floor(ln[t]); if (C[ii]) { sd2 += DIN[ii] / 3; nd++; } }
-    out.push({ runs, lines: sk.lines, hw: nd ? sd2 / nd + 0.5 : A / Math.max(sk.len, 1) / 2 });
+    if (ndF && pvF === pvF) { // 후보 중심선의 NDVI가 주변 숲보다 낮아야 도로로 인정(그늘·어두운 수관 틈 거르기)
+      if (!NR) NR = boxMean(ndF, W, H, Math.max(4, Math.round(25 / q.mpp)), new Float32Array(N), new Float32Array(N));
+      let sa = 0, sr = 0, na = 0; for (const ln of sk.lines) for (let t = 0; t < ln.length; t += 2) { const ii = Math.floor(ln[t + 1]) * W + Math.floor(ln[t]); if (nd[ii] === nd[ii]) { sa += nd[ii]; sr += NR[ii]; na++; } }
+      if (na >= 5) {
+        const along = sa / na, drop = sr / na - along;
+        const veg = q.ndFine ? along > ndTr + 0.15 : (drop < 0.02 && along >= pvF - 0.08);
+        if (veg) { if (q.st) q.st.rej++; continue; }
+        if (q.st) q.st.ok++;
+      }
+    }
+    let sd2 = 0, nw = 0; for (const ln of sk.lines) for (let t = 0; t < ln.length; t += 2) { const ii = Math.floor(ln[t + 1]) * W + Math.floor(ln[t]); if (C[ii]) { sd2 += DIN[ii] / 3; nw++; } }
+    out.push({ runs, lines: sk.lines, hw: nw ? sd2 / nw + 0.5 : A / Math.max(sk.len, 1) / 2 });
   }
   return out;
 }
@@ -3597,6 +3874,12 @@ function parseCmdLine(s) {
   if (T(/^(\?|도움|도움말|명령어|사용법|help|예시)/i)) return { k: 'help' };
   if (T(/되돌|이전\s*결과|실행\s*취소|undo|원래대로/i)) return { k: 'undo' };
   if (T(/(shp|셰이프|쉐이프|엑셀|excel|xlsx|pdf|jpg|이미지|도면)/i) && T(/(저장|다운|내보내|받|출력|뽑)/)) return { k: 'export', fmt: T(/엑셀|excel|xlsx/i) ? 'xlsx' : T(/pdf/i) ? 'pdf' : T(/jpg|이미지|도면/i) ? 'jpg' : 'shp' };
+  if (T(/NDVI|근적외|식생\s*지수|\bNIR\b/i)) {
+    if (off) return { k: 'ndviset', v: 'off' };
+    if (T(/올린\s*(자료|것)만|업로드/)) return { k: 'ndviset', v: 'upload' };
+    if (T(/불러|받아|가져|넣어|만들|켜|표시|보여/)) return { k: 'ndvi', season: T(/최신|최근/) ? 'latest' : 'leaf', where: T(/화면/) ? 'view' : 'area' };
+    return { k: 'ndviset', v: 'auto' };
+  }
   if (T(/(작업)?기준.*(비우|초기화|모두\s*삭제|전부\s*삭제|다\s*지워|다\s*꺼)/)) return { k: 'clear' };
   if (T(/(기준|목록).*(보여|보기|확인|열어)/)) return { k: 'list' };
   if (T(/((작업\s*)?구역|도엽).*(해제|풀어|지워|없애)|시\s*전체(로|를|에서)?\s*(작업|처리|실행|해)/)) return { k: 'area', clear: true };
@@ -3640,7 +3923,7 @@ function applyCmdCrit(o, a) {
   const i = o.criteria.findIndex((x) => x.op === 'memo'); o.criteria.splice(i < 0 ? o.criteria.length : i, 0, c);
   return '새 기준 추가';
 }
-const CMD_EX = ['도엽 37608080만 실행', '의림동만 실행', '구역 해제', '영상 경계선에 맞춰 경계 옮기기 15m', '산림 안 달라진 부분 따기 민감도 4', '임도 따기 폭 10m 이하', '임도 노선 4m로 잘라 B12로', '묘지 점 3개 이상 15m 안 모이면 F22', '토지피복 154 큰 도로 폭 8m 이상은 B11로', '임상도 경계로 산림 나누기', '300㎡ 미만 조각 합치기', 'E11을 E12로 바꿔', '같은 유형 합치기', '영상 변화 끄기', '실행', '되돌리기', 'SHP 저장'];
+const CMD_EX = ['도엽 37608080만 실행', 'NDVI 불러와', '의림동만 실행', '구역 해제', '영상 경계선에 맞춰 경계 옮기기 15m', '산림 안 달라진 부분 따기 민감도 4', '임도 따기 폭 10m 이하', '임도 노선 4m로 잘라 B12로', '묘지 점 3개 이상 15m 안 모이면 F22', '토지피복 154 큰 도로 폭 8m 이상은 B11로', '임상도 경계로 산림 나누기', '300㎡ 미만 조각 합치기', 'E11을 E12로 바꿔', '같은 유형 합치기', '영상 변화 끄기', '실행', '되돌리기', 'SHP 저장'];
 function cmdLog(html, cls) { const L = $('#cmdLog'); if (!L) return; L.classList.remove('hidden'); const d = document.createElement('div'); d.className = 'cl ' + (cls || ''); d.innerHTML = html; L.appendChild(d); while (L.children.length > 40) L.firstChild.remove(); L.scrollTop = L.scrollHeight; return d; }
 function cmdHelp() {
   cmdLog(`<b>명령 예시</b> — 누르면 입력칸에 들어감. 여러 명령은 줄바꿈이나 ; 로 나눔. 기준을 바꾸는 명령은 끝나면 바로 결과 도출까지 함.<div class="cx">${CMD_EX.map((e) => `<span data-ex="${esc(e)}">${esc(e)}</span>`).join('')}</div><span style="opacity:.75">숫자 단위: m(폭·거리), ㎡·ha(면적), 개(점 수), 민감도 1~5. 값: 산림·초지·농경지·나지·시가지·수역·습지, 토지피복 3자리 코드(154 등), 유형 코드(B11·E12 등). “화면 안만”을 붙이면 지금 보이는 곳만 판독함.</span>`, 'help');
@@ -3676,6 +3959,8 @@ async function cmdExec(text) {
       }
       areaDraw(); $('#oAreaGo') && $('#oAreaGo').click();
     }
+    if (a.k === 'ndvi') { say('Sentinel-2 근적외(NIR) 영상으로 NDVI를 만드는 중 — 현존식생 탭에 들어감'); const L = await ndviLoadUI(a.where, a.season); say(L ? `${esc(L.name)} 불러옴 (${esc(L.note)}) — 임도 따기에서 식생·비식생 구분에 함께 씀` : 'NDVI를 불러오지 못함 — 지도를 대상지로 옮기거나 작업 구역을 좁혀서 다시', L ? '' : 'w'); }
+    if (a.k === 'ndviset') { const cs = (o.criteria || []).filter((c) => c.op === 'imgroad'); cs.forEach((c) => c.p = { ...(c.p || {}), ndvi: a.v }); say(cs.length ? `임도 따기에서 NDVI ${a.v === 'off' ? '참고를 끔' : a.v === 'upload' ? '는 현존식생 탭에 올린 자료만 씀' : '를 참고함(올린 자료 우선, 없으면 Sentinel-2 자동)'}` : '임도 따기 작업기준이 없음', cs.length ? '' : 'w'); }
     if (a.k === 'unknown') say(`알아듣지 못함: “${esc(a.s)}” — <a href="#" data-h>명령 예시 보기</a>`, 'w');
     if (a.k === 'clear') { (o.criteria || []).forEach((c) => { if (c.op !== 'memo') c.on = false; }); say('작업기준을 모두 끔(목록은 남김)'); }
     if (a.k === 'dissolve') { o.dissolve = a.on; say(a.on ? '판정 뒤 같은 유형끼리 맞닿은 폴리곤을 합침' : '같은 유형 합치기를 끔'); }
@@ -3686,6 +3971,7 @@ async function cmdExec(text) {
   saveOutputs(); renderAll();
   const onlyArea = changes.length && changes.every((a) => a.k === 'area') && !acts.some((a) => a.run || a.k === 'run');
   if (onlyArea) { say('구역만 정했음 — 이 구역으로 처리하려면 “실행”을 입력', ''); return; }
+  if (acts.length && acts.every((a) => a.k === 'ndvi' || a.k === 'ndviset')) return;
   const run = changes.length || acts.some((a) => a.k === 'run'), exp = acts.find((a) => a.k === 'export');
   if (run) {
     const base = layerById(o.base || defaultBase(o));
@@ -3740,7 +4026,7 @@ async function restore() {
   for (let i = 0; i < saved.length; i++) {
     const m = saved[i];
     setTask(`저장된 자료 불러오는 중 ${i + 1}/${saved.length}`, 100 * i / saved.length);
-    if (m.kind === 'raster') await addRaster(null, m); else await loadVector(m, true);
+    if (m.kind === 'raster') await addRaster(null, m); else if (m.kind === 'ndvi') await addNdviLayer(m, true); else await loadVector(m, true);
   }
   if (saved.length) { const ext = S.layers.filter((l) => l.extent).reduce((e, l) => ol.extent.extend(e, l.extent), ol.extent.createEmpty()); if (!ol.extent.isEmpty(ext)) view.fit(ext, { padding: [40, 40, 40, 40] }); clearTask(`저장된 자료 ${saved.length}개 불러옴`); }
 }
