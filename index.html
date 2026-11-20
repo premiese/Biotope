@@ -2615,7 +2615,7 @@ function guideHTML() {
 
 
 // ---------- 실시간 진행 표시(지도 위) ----------
-const APP_VER = '2026.11.20-3';
+const APP_VER = '2026.11.20-4';
 const LIVE = { src: new ol.source.Vector({ wrapX: false }) };
 LIVE.styles = {
   tgt: new ol.style.Style({ stroke: new ol.style.Stroke({ color: 'rgba(255,255,255,.9)', width: 1.2, lineDash: [5, 4] }) }),
@@ -2723,7 +2723,7 @@ async function imgRoadExtract(o, c, base) {
     catch (e) { ndWhy = e.message; toast(`${c.title}: Sentinel-2 NDVI를 못 불러옴${NS.fine.length ? ' — 고해상 NDVI만 씀' : ' — 영상 색·질감만으로 판독함'}: ${e.message}`, 'warn'); }
   }
   if (NS && !NS.fine.length && !NS.coarse) { if (ndMode === 'upload') ndWhy = '현존식생 탭에 이 범위를 덮는 NIR·NDVI 자료가 없음'; NS = null; }
-  const ndSt = { rej: 0, ok: 0, nv: 0, blocks: 0 };
+  const ndSt = { rej: 0, ok: 0, nv: 0, blocks: 0, bridged: 0 };
   // 8×8 타일 블록(+둘레 1타일 여유)씩 처리
   const BS = 8, blocks = new Map();
   for (const [x, y] of tiles.values()) { const k = Math.floor(x / BS) + ',' + Math.floor(y / BS); if (!blocks.has(k)) blocks.set(k, [Math.floor(x / BS), Math.floor(y / BS)]); }
@@ -2759,7 +2759,7 @@ async function imgRoadExtract(o, c, base) {
     }
     const md = mg.getImageData(0, 0, W, H).data;
     const ndB = ndviCombine(NS, ox, oy, res, W, H); if (ndB) ndSt.blocks++;
-    const comps = roadPixels(px, md, W, H, { hw, minLen, minA, sens, forest: autoForest, edgePx, spurPx: 25 / gres, nd: ndB && ndB.nd, ndFineMask: ndB && ndB.fineMask, ndFine: !!(ndB && ndB.fineFrac > 0.3), ndT: NS ? (NS.fine[0] || NS.coarse).thr : 0, mpp: gres, st: ndSt });
+    const comps = roadPixels(px, md, W, H, { hw, minLen, minA, sens, forest: autoForest, edgePx, spurPx: 25 / gres, bridgePx: Math.max(60, 2.5 * (+p.gap || 40)) / gres, nd: ndB && ndB.nd, ndFineMask: ndB && ndB.fineMask, ndFine: !!(ndB && ndB.fineFrac > 0.3), ndT: NS ? (NS.fine[0] || NS.coarse).thr : 0, mpp: gres, st: ndSt });
     // 핵심 영역(둘레 여유 제외)만 직사각형으로 기록
     const c0 = 256, c1 = W - 256;
     for (const cm of comps) {
@@ -2798,7 +2798,7 @@ async function imgRoadExtract(o, c, base) {
   if (r.n) { liveClear(); const tmp = { geom: 'poly', name: '임도' }; await buildFeatures(tmp, out.geom); tmp.features.forEach((ft) => LIVE.src.addFeature(new ol.Feature({ geometry: ft.getGeometry(), k: 'road' }))); }
   ROAD_CACHE.set(key, out);
   if (fetched < tiles.size * 0.5) toast(`영상 타일을 ${fmt(fetched)}/${fmt(tiles.size)}장만 받음 — 인터넷·브이월드 키 확인`, 'warn');
-  toast(`${c.title}: 영상 타일 ${fmt(fetched)}장 판독 → 숲 안쪽 임도 ${fmt(r.n)}개 · 폭 ${out_w} m로 통일${r.joined ? ` · 끊긴 곳 ${fmt(r.joined)}군데 이음` : ''}${ndTxt}`);
+  toast(`${c.title}: 영상 타일 ${fmt(fetched)}장 판독 → 숲 안쪽 임도 ${fmt(r.n)}개 · 폭 ${out_w} m로 통일${ndSt.bridged ? ` · 영상에서 길을 따라 ${fmt(ndSt.bridged)}군데 이음` : ''}${r.joined ? ` · 끊긴 곳 ${fmt(r.joined)}군데 이음` : ''}${ndTxt}`);
   return out;
 }
 
@@ -3128,7 +3128,7 @@ function roadPixels(px, md, W, H, q) {
     pv = ndQ((i) => M[i], 0.75);
     if (pv === pv) {
       ndF = new Float32Array(N); for (let i = 0; i < N; i++) ndF[i] = nd[i] === nd[i] ? nd[i] : pv;
-      const t1 = new Float32Array(N), NB = boxMean(ndF, W, H, Math.max(3, Math.round(10 / q.mpp)), new Float32Array(N), t1), tNV = q.ndT ? Math.min(q.ndT, pv - 0.15) : Math.min(0.4, pv - 0.3);
+      const t1 = new Float32Array(N), NB = boxMean(ndF, W, H, Math.max(4, Math.round(25 / q.mpp)), new Float32Array(N), t1), tNV = Math.max(0.12, Math.min(pv - 0.12, Math.max(q.ndT || 0, 0.55 * pv))); // 넓게(약 50 m 창) 보아 숲 수준의 55%에 못 미치면 비식생(시가지·나지)
       nonveg = new Uint8Array(N); let cut = 0;
       for (let i = 0; i < N; i++) if (NB[i] < tNV && nd[i] === nd[i]) { nonveg[i] = 1; if (M[i]) { M[i] = 0; hist[Lm[i]]--; cnt--; cut++; } }
       if (q.st) q.st.nv += cut;
@@ -3157,14 +3157,6 @@ function roadPixels(px, md, W, H, q) {
   let C = new Uint8Array(N);
   for (let i = 0, j = 0; i < N; i++, j += 4) if (M[i] && Lm[i] > thr && px[j + 1] / (px[j] + px[j + 1] + px[j + 2] + 1) <= gsT) C[i] = 1;
   const pvF = ndF ? ndQ((i) => M[i], 0.5) : NaN;
-  if (ndF && q.ndFine && pvF === pvF) { // 고해상 근적외 자료: 화소마다 NDVI로 도로(비식생)인지 함께 판단
-    ndTr = Math.min(0.35, pvF - 0.25);
-    for (let i = 0; i < N; i++) {
-      if (!M[i] || nd[i] !== nd[i] || (q.ndFineMask && !q.ndFineMask[i])) continue;
-      if (C[i] && nd[i] > ndTr + 0.1) C[i] = 0; // 밝아도 식생이면 도로 아님(밝은 수관·초지)
-      else if (!C[i] && nd[i] < ndTr && Lm[i] > m) C[i] = 1; // 색은 비슷해도 식생이 아니면 도로 후보
-    }
-  }
   // 닫힘(3×3 팽창 → 침식)으로 작은 틈 메우기
   const dil = new Uint8Array(N), ero = new Uint8Array(N);
   for (let y = 1; y < H - 1; y++) for (let x = 1; x < W - 1; x++) { const i = y * W + x; if (C[i] || C[i - 1] || C[i + 1] || C[i - W] || C[i + W] || C[i - W - 1] || C[i - W + 1] || C[i + W - 1] || C[i + W + 1]) dil[i] = 1; }
@@ -3188,10 +3180,10 @@ function roadPixels(px, md, W, H, q) {
     const DB = cham(bad, false);
     for (let i = 0; i < N; i++) if (C[i] && DB[i] / 3 <= q.edgePx) C[i] = 0;
   }
-  // 8방향 연결 덩어리 → 길이·면적 거르기
+  // 8방향 연결 덩어리 → 중심선. 짧은 조각도 일단 모아 두고, 영상에서 이어져 보이는 조각끼리 길을 찾아 이은 뒤 전체 길이로 거름
   const DIN = cham(C, true); // 도로 안쪽 화소의 가장자리까지 거리(폭 재기용)
-  let NR = null;
-  const lab = new Int32Array(N), stack = new Int32Array(N), out = [];
+  let NR = null, NMIN = null;
+  const lab = new Int32Array(N), stack = new Int32Array(N), cand = [];
   let nl = 0;
   for (let s0 = 0; s0 < N; s0++) {
     if (!C[s0] || lab[s0]) continue;
@@ -3202,25 +3194,88 @@ function roadPixels(px, md, W, H, q) {
       for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) { if (!dx && !dy) continue; const xx = x + dx, yy = y + dy; if (xx < 0 || yy < 0 || xx >= W || yy >= H) continue; const k = yy * W + xx; if (C[k] && !lab[k]) { lab[k] = nl; stack[sp++] = k; } }
     }
     const w = 2 * A / Math.max(P, 1), len = A / Math.max(w, 1);
-    if (len < q.minLen || A < q.minA) continue;
+    if (len < Math.max(8, q.minLen * 0.3) || A < q.minA * 0.3) continue; // 조각은 30% 길이까지 받아 두고 나중에 이은 뒤 다시 거름
     pix.sort((a, b) => a - b);
     const runs = []; let k = 0;
     while (k < pix.length) { const y = (pix[k] / W) | 0, x0 = pix[k] % W; let x1 = x0 + 1; k++; while (k < pix.length && pix[k] === y * W + x1) { x1++; k++; } runs.push(y, x0, x1); }
     const sk = skeletonLines(pix, W, Math.max(q.spurPx || 0, 3 * w), Math.max(20, Math.PI * (q.hw * 1.5) ** 2));
     if (!sk.lines.length) continue;
-    if (ndF && pvF === pvF) { // 후보 중심선의 NDVI가 주변 숲보다 낮아야 도로로 인정(그늘·어두운 수관 틈 거르기)
-      if (!NR) NR = boxMean(ndF, W, H, Math.max(4, Math.round(25 / q.mpp)), new Float32Array(N), new Float32Array(N));
-      let sa = 0, sr = 0, na = 0, nfn = 0; for (const ln of sk.lines) for (let t = 0; t < ln.length; t += 2) { const ii = Math.floor(ln[t + 1]) * W + Math.floor(ln[t]); if (nd[ii] === nd[ii]) { sa += nd[ii]; sr += NR[ii]; na++; if (!q.ndFineMask || q.ndFineMask[ii]) nfn++; } }
+    if (ndF && pvF === pvF) { // NDVI는 보조: 중심선 근처(위치 오차 약 4 m 허용)에 주변 숲보다 뚜렷이 낮은 NDVI가 전혀 없을 때만 그늘·수관 틈으로 보고 뺌
+      if (!NR) { NR = boxMean(ndF, W, H, Math.max(4, Math.round(25 / q.mpp)), new Float32Array(N), new Float32Array(N)); NMIN = minFilter(ndF, W, H, Math.max(2, Math.round(4 / q.mpp))); }
+      let sa = 0, sr = 0, na = 0, nfn = 0; for (const ln of sk.lines) for (let t = 0; t < ln.length; t += 2) { const ii = Math.floor(ln[t + 1]) * W + Math.floor(ln[t]); if (nd[ii] === nd[ii]) { sa += NMIN[ii]; sr += NR[ii]; na++; if (q.ndFineMask && q.ndFineMask[ii]) nfn++; } }
       if (na >= 5) {
-        const along = sa / na, drop = sr / na - along;
-        const fineHere = q.ndFine && ndTr === ndTr && nfn >= na * 0.6, veg = fineHere ? along > ndTr + 0.15 : (drop < 0.02 && along >= pvF - 0.08);
-        if (veg) { if (q.st) q.st.rej++; continue; }
+        const drop = sr / na - sa / na, fine = nfn >= na * 0.6;
+        if (drop < (fine ? 0.05 : 0.015)) { if (q.st) q.st.rej++; continue; }
         if (q.st) q.st.ok++;
       }
     }
     let sd2 = 0, nw = 0; for (const ln of sk.lines) for (let t = 0; t < ln.length; t += 2) { const ii = Math.floor(ln[t + 1]) * W + Math.floor(ln[t]); if (C[ii]) { sd2 += DIN[ii] / 3; nw++; } }
-    out.push({ runs, lines: sk.lines, hw: nw ? sd2 / nw + 0.5 : A / Math.max(sk.len, 1) / 2 });
+    cand.push({ runs, lines: sk.lines, hw: nw ? sd2 / nw + 0.5 : A / Math.max(sk.len, 1) / 2, len: sk.len, A });
   }
+  // 조각 잇기: 끝점에서 진행 방향 앞쪽(60° 안) 다른 조각까지, 영상에서 주변 숲보다 밝은 화소를 따라가는 최소비용 경로를 찾아 길처럼 보이면 연결
+  const bridges = [], par = cand.map((_, i) => i), find = (a) => { while (par[a] !== a) a = par[a] = par[par[a]]; return a; };
+  if (cand.length > 1 && q.bridgePx > 0) {
+    const lowL = m + 0.5 * sd, ends = [];
+    cand.forEach((c, ci) => c.lines.forEach((ln) => { const n = ln.length / 2; if (n < 2) return; for (const [a, b] of [[0, Math.min(n - 1, 8)], [n - 1, Math.max(0, n - 9)]]) { const ex = ln[2 * a], ey = ln[2 * a + 1], dx = ex - ln[2 * b], dy = ey - ln[2 * b + 1], dl = Math.hypot(dx, dy) || 1; ends.push({ ci, x: ex, y: ey, ux: dx / dl, uy: dy / dl }); } }));
+    const pts = []; cand.forEach((c, ci) => c.lines.forEach((ln) => { for (let t = 0; t < ln.length; t += 6) pts.push({ ci, x: ln[t], y: ln[t + 1] }); const n = ln.length; pts.push({ ci, x: ln[n - 2], y: ln[n - 1] }); }));
+    const cost = new Float32Array(N); for (let i = 0, j = 0; i < N; i++, j += 4) { const gsr = px[j + 1] / (px[j] + px[j + 1] + px[j + 2] + 1); cost[i] = 1 + 6 * Math.max(0, Math.min(3, (lowL - Lm[i]) / sd)) + (gsr > g50 ? 3 : 0); }
+    const R2 = q.bridgePx * q.bridgePx; let tries = 0;
+    for (const e of ends) {
+      if (tries > 400) break;
+      const opts = [];
+      for (const p2 of pts) { if (find(p2.ci) === find(e.ci)) continue; const dx = p2.x - e.x, dy = p2.y - e.y, d2 = dx * dx + dy * dy; if (d2 > R2 || d2 < 4) continue; const d = Math.sqrt(d2); if ((dx * e.ux + dy * e.uy) / d < 0.5) continue; opts.push({ p2, d }); }
+      opts.sort((a, b) => a.d - b.d);
+      for (const { p2, d } of opts.slice(0, 2)) {
+        tries++;
+        const path = lcPath(cost, W, H, Math.round(e.x - 0.5), Math.round(e.y - 0.5), Math.round(p2.x - 0.5), Math.round(p2.y - 0.5), Math.round(Math.max(20, d * 0.4)));
+        if (!path || path.length / 2 > d * 1.6 + 10) continue;
+        let br = 0; for (let t = 0; t < path.length; t += 2) if (Lm[path[t + 1] * W + path[t]] >= lowL) br++;
+        const frac = br / (path.length / 2);
+        if (frac >= 0.6 || (d * q.mpp <= 20 && frac >= 0.3)) { // 대부분 밝은 길 화소로 이어짐(짧은 그늘 구간은 30%만 돼도)
+          const ln = []; for (let t = 0; t < path.length; t += 2) ln.push(path[t] + 0.5, path[t + 1] + 0.5);
+          bridges.push({ a: e.ci, b: p2.ci, line: ln }); par[find(e.ci)] = find(p2.ci); if (q.st) q.st.bridged = (q.st.bridged || 0) + 1; break;
+        }
+      }
+    }
+  }
+  // 이어진 묶음별로 다시 거름(전체 길이·면적) → 결과
+  const groups = new Map(); cand.forEach((c, i) => { const r = find(i); if (!groups.has(r)) groups.set(r, []); groups.get(r).push(i); });
+  const out = [];
+  for (const [r, ids] of groups) {
+    let len = 0, A = 0, hws = 0; const lines = [], runs = [];
+    for (const i of ids) { const c = cand[i]; len += c.len; A += c.A; hws += c.hw * c.len; lines.push(...c.lines); for (let k = 0; k < c.runs.length; k++) runs.push(c.runs[k]); }
+    for (const b of bridges) if (find(b.a) === r) { lines.push(b.line); len += b.line.length / 2; }
+    if (len < q.minLen || A < q.minA) continue;
+    out.push({ runs, lines, hw: hws / Math.max(1, len) });
+  }
+  return out;
+}
+// 최소비용 경로(8방향 다익스트라, 두 점을 감싼 상자 안) — 영상에서 길을 따라 잇기용
+function lcPath(cost, W, H, x0, y0, x1, y1, pad) {
+  const bx0 = Math.max(0, Math.min(x0, x1) - pad), by0 = Math.max(0, Math.min(y0, y1) - pad), bx1 = Math.min(W - 1, Math.max(x0, x1) + pad), by1 = Math.min(H - 1, Math.max(y0, y1) + pad);
+  const bw = bx1 - bx0 + 1, bh = by1 - by0 + 1, n = bw * bh; if (n > 400000 || x0 < bx0 || y0 < by0 || x1 < bx0 || y1 < by0) return null;
+  const dist = new Float32Array(n).fill(Infinity), prev = new Int32Array(n).fill(-1), done = new Uint8Array(n);
+  const hk = [], hv = []; const push = (k, v) => { hk.push(k); hv.push(v); let i = hk.length - 1; while (i) { const p = (i - 1) >> 1; if (hv[p] <= hv[i]) break; [hk[p], hk[i]] = [hk[i], hk[p]]; [hv[p], hv[i]] = [hv[i], hv[p]]; i = p; } };
+  const pop = () => { const k = hk[0], v = hv[0], lk = hk.pop(), lv = hv.pop(); if (hk.length) { hk[0] = lk; hv[0] = lv; let i = 0; for (;;) { const l = 2 * i + 1, r = l + 1; let s = i; if (l < hk.length && hv[l] < hv[s]) s = l; if (r < hk.length && hv[r] < hv[s]) s = r; if (s === i) break; [hk[s], hk[i]] = [hk[i], hk[s]]; [hv[s], hv[i]] = [hv[i], hv[s]]; i = s; } } return [k, v]; };
+  const s = (y0 - by0) * bw + (x0 - bx0), g = (y1 - by0) * bw + (x1 - bx0); dist[s] = 0; push(s, 0);
+  while (hk.length) {
+    const [k, v] = pop(); if (done[k]) continue; done[k] = 1; if (k === g) break;
+    const x = k % bw, y = (k / bw) | 0;
+    for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+      if (!dx && !dy) continue; const xx = x + dx, yy = y + dy; if (xx < 0 || yy < 0 || xx >= bw || yy >= bh) continue;
+      const kk = yy * bw + xx; if (done[kk]) continue;
+      const nv = v + cost[(yy + by0) * W + xx + bx0] * (dx && dy ? 1.414 : 1); if (nv < dist[kk]) { dist[kk] = nv; prev[kk] = k; push(kk, nv); }
+    }
+  }
+  if (!done[g]) return null;
+  const out = []; for (let k = g; k !== -1; k = prev[k]) out.push((k % bw) + bx0, ((k / bw) | 0) + by0);
+  return out;
+}
+// 최솟값 필터(정사각형 창, 행·열 분리)
+function minFilter(src, W, H, r) {
+  const tmp = new Float32Array(W * H), out = new Float32Array(W * H);
+  for (let y = 0; y < H; y++) { const o = y * W; for (let x = 0; x < W; x++) { let v = Infinity; for (let k = Math.max(0, x - r); k <= Math.min(W - 1, x + r); k++) if (src[o + k] < v) v = src[o + k]; tmp[o + x] = v; } }
+  for (let x = 0; x < W; x++) for (let y = 0; y < H; y++) { let v = Infinity; for (let k = Math.max(0, y - r); k <= Math.min(H - 1, y + r); k++) if (tmp[k * W + x] < v) v = tmp[k * W + x]; out[y * W + x] = v; }
   return out;
 }
 // 덩어리 화소 → 중심선(작은 구멍 메움 → Zhang-Suen 세선화 → 짧은 곁가지 반복 제거 → 선 따라가기)
