@@ -1801,31 +1801,40 @@ function ndColor(v) { // 갈색(비식생) → 노랑 → 초록(식생), 음수
   for (let i = 1; i < st.length; i++) if (v <= st[i][0]) { const [a, ca] = st[i - 1], [b, cb] = st[i], t = (v - a) / (b - a); return ca.map((c, k) => Math.round(c + (cb[k] - c) * t)); }
   return st[st.length - 1][1];
 }
-function ndExt3857(L) { return ol.proj.transformExtent([L.gt[0], L.gt[2] + L.gt[3] * L.h, L.gt[0] + L.gt[1] * L.w, L.gt[2]], L.crs, 'EPSG:3857'); }
-async function ndMakeOl(L) {
-  const sc = Math.max(1, Math.ceil(Math.max(L.w, L.h) / 4096)), cw = Math.ceil(L.w / sc), ch = Math.ceil(L.h / sc);
+const ndTiles = (L) => L.tiles || [{ gt: L.gt, w: L.w, h: L.h, data: L.data }];
+const ndTileExt = (T) => [T.gt[0], T.gt[2] + T.gt[3] * T.h, T.gt[0] + T.gt[1] * T.w, T.gt[2]];
+function ndExt3857(L) { const e = ol.extent.createEmpty(); for (const T of ndTiles(L)) { T.e3857 = ol.proj.transformExtent(ndTileExt(T), L.crs, 'EPSG:3857'); ol.extent.extend(e, T.e3857); } return e; }
+async function ndTileImage(L, T, maxSide) {
+  const sc = Math.max(1, Math.ceil(Math.max(T.w, T.h) / maxSide)), cw = Math.ceil(T.w / sc), ch = Math.ceil(T.h / sc);
   const cv = document.createElement('canvas'); cv.width = cw; cv.height = ch; const g = cv.getContext('2d'), im = g.createImageData(cw, ch), d = im.data;
   for (let y = 0; y < ch; y++) for (let x = 0; x < cw; x++) {
-    const v = L.data[Math.min(L.h - 1, y * sc) * L.w + Math.min(L.w - 1, x * sc)], j = 4 * (y * cw + x);
+    const v = T.data[Math.min(T.h - 1, y * sc) * T.w + Math.min(T.w - 1, x * sc)], j = 4 * (y * cw + x);
     if (v === ND_NODATA) continue; const c = ndColor(v / 10000); d[j] = c[0]; d[j + 1] = c[1]; d[j + 2] = c[2]; d[j + 3] = 255;
   }
   g.putImageData(im, 0, 0);
   const url = await new Promise((r) => cv.toBlob((b) => r(URL.createObjectURL(b)), 'image/png'));
-  const ext = [L.gt[0], L.gt[2] + L.gt[3] * L.h, L.gt[0] + L.gt[1] * L.w, L.gt[2]];
-  L.extent = ol.proj.transformExtent(ext, L.crs, S.crs); L.ext3857 = ndExt3857(L);
-  return new ol.layer.Image({ source: new ol.source.ImageStatic({ url, imageExtent: ext, projection: L.crs, interpolate: false }), opacity: L.opacity, visible: L.visible });
+  return new ol.layer.Image({ source: new ol.source.ImageStatic({ url, imageExtent: ndTileExt(T), projection: L.crs, interpolate: false }) });
+}
+async function ndMakeOl(L) {
+  const tiles = ndTiles(L);
+  L.ext3857 = ndExt3857(L); L.extent = ol.proj.transformExtent(L.ext3857, 'EPSG:3857', S.crs);
+  if (tiles.length === 1) { const lay = await ndTileImage(L, tiles[0], 4096); lay.setOpacity(L.opacity); lay.setVisible(L.visible); return lay; }
+  const ls = []; for (let i = 0; i < tiles.length; i++) { ls.push(await ndTileImage(L, tiles[i], 800)); if ((i & 15) === 15) { setTask(`${L.name} — 지도에 그리는 중 ${i + 1}/${tiles.length}`, 90); await tick(); } }
+  return new ol.layer.Group({ layers: ls, opacity: L.opacity, visible: L.visible });
 }
 async function addNdviLayer(meta, fromDb) {
   if (!ndCrs(meta.crs)) { if (meta.crsDef) { proj4.defs(meta.crs, meta.crsDef); ol.proj.proj4.register(proj4); } else { toast(`${meta.name}: 좌표계 ${meta.crs}를 알 수 없음`, 'err'); return null; } }
   const lm = LS.get('gb2.lm.' + meta.id, {});
-  const L = { ...meta, kind: 'ndvi', cat: meta.cat || 'veg', name: lm.name || meta.name, visible: lm.visible == null ? true : lm.visible, opacity: lm.opacity == null ? 0.75 : lm.opacity, size: meta.data.byteLength };
-  if (!(L.data instanceof Int16Array)) L.data = new Int16Array(L.data);
+  const L = { ...meta, kind: 'ndvi', cat: meta.cat || 'veg', name: lm.name || meta.name, visible: lm.visible == null ? true : lm.visible, opacity: lm.opacity == null ? 0.75 : lm.opacity };
+  if (L.tiles) L.tiles.forEach((T) => { if (!(T.data instanceof Int16Array)) T.data = new Int16Array(T.data); });
+  else if (!(L.data instanceof Int16Array)) L.data = new Int16Array(L.data);
+  L.size = ndTiles(L).reduce((a, T) => a + T.data.byteLength, 0);
   L.ol = await ndMakeOl(L); L.ol._L = L;
   S.layers.push(L); S.layers.sort((a, b) => a.order - b.order); syncVecGroup();
-  if (!fromDb) { await DB.put({ id: L.id, kind: 'ndvi', cat: L.cat, name: L.name, src: L.src, date: L.date, cc: L.cc, res: L.res, crs: L.crs, gt: L.gt, w: L.w, h: L.h, data: L.data, order: L.order, note: L.note }).catch((e) => toast('브라우저 저장 실패(새로고침하면 다시 불러와야 함): ' + e.message, 'warn')); renderAll(); }
+  if (!fromDb) { await DB.put({ id: L.id, kind: 'ndvi', cat: L.cat, name: L.name, src: L.src, date: L.date, cc: L.cc, res: L.res, crs: L.crs, gt: L.gt, w: L.w, h: L.h, data: L.data, tiles: L.tiles ? L.tiles.map((T) => ({ gt: T.gt, w: T.w, h: T.h, data: T.data, id: T.id })) : undefined, order: L.order, note: L.note }).catch((e) => toast('브라우저 저장 실패(새로고침하면 다시 불러와야 함): ' + e.message, 'warn')); renderAll(); }
   return L;
 }
-function ndStats(L) { const h = new Uint32Array(2001); let n = 0; for (let i = 0; i < L.data.length; i += 7) { const v = L.data[i]; if (v === ND_NODATA) continue; h[Math.max(0, Math.min(2000, Math.round(v / 10) + 1000))]++; n++; } const q = (p) => { let a = 0; for (let k = 0; k <= 2000; k++) { a += h[k]; if (a >= n * p) return (k - 1000) / 1000; } return 1; }; return { n, p10: q(0.1), p50: q(0.5), p90: q(0.9) }; }
+function ndStats(L) { const h = new Uint32Array(2001); let n = 0; for (const T of ndTiles(L)) for (let i = 0; i < T.data.length; i += 7) { const v = T.data[i]; if (v === ND_NODATA) continue; h[Math.max(0, Math.min(2000, Math.round(v / 10) + 1000))]++; n++; } const q = (p) => { let a = 0; for (let k = 0; k <= 2000; k++) { a += h[k]; if (a >= n * p) return (k - 1000) / 1000; } return 1; }; return { n, p10: q(0.1), p50: q(0.5), p90: q(0.9) }; }
 
 // Sentinel-2 L2A(10 m) 적색·근적외 밴드 → NDVI. 키 없이 Element84 Earth Search(AWS 공개 자료)에서 범위만큼만 읽음
 async function loadS2Ndvi(ext3857, opt = {}) {
@@ -1948,7 +1957,7 @@ async function addNdviTif(file) {
 }
 // 범위를 가장 잘 덮는 식생지수 자료: 고해상(3 m 이하) 자료 우선
 function ndviPick(ext3857) {
-  const A = ol.extent.getArea(ext3857) || 1, cov = (L) => { const i = ol.extent.getIntersection(L.ext3857, ext3857); return ol.extent.isEmpty(i) ? 0 : ol.extent.getArea(i) / A; };
+  const A = ol.extent.getArea(ext3857) || 1, cov = (L) => { let s = 0; for (const T of ndTiles(L)) { const i = ol.extent.getIntersection(T.e3857 || L.ext3857, ext3857); if (!ol.extent.isEmpty(i)) s += ol.extent.getArea(i); } return Math.min(1, s / A); };
   const ls = S.layers.filter((l) => l.kind === 'ndvi').map((L) => ({ L, c: cov(L) }));
   const fine = ls.filter((x) => x.L.res <= 3 && x.c >= 0.3).sort((a, b) => b.c - a.c)[0];
   if (fine) return fine.L;
@@ -1958,26 +1967,73 @@ function ndviPick(ext3857) {
 // 영상 판독 블록(웹메르카토르 화소 격자)에 NDVI를 겹쳐 같은 크기 배열로 — 자료 없는 곳은 NaN
 function ndviForBlock(L, ox, oy, res, W, H) {
   const be = [ox, oy - H * res, ox + W * res, oy]; if (!ol.extent.intersects(be, L.ext3857)) return null;
-  const tr = ol.proj.getTransform('EPSG:3857', L.crs), S2 = 32, nx = Math.ceil(W / S2) + 1, ny = Math.ceil(H / S2) + 1, gx = new Float64Array(nx * ny), gy = new Float64Array(nx * ny);
-  for (let j = 0; j < ny; j++) for (let i = 0; i < nx; i++) { const p = tr([ox + i * S2 * res, oy - j * S2 * res]); gx[j * nx + i] = (p[0] - L.gt[0]) / L.gt[1]; gy[j * nx + i] = (p[1] - L.gt[2]) / L.gt[3]; }
-  const out = new Float32Array(W * H).fill(NaN), D = L.data, w = L.w, h = L.h, bil = L.res > 3; let any = false;
-  for (let y = 0; y < H; y++) {
-    const j = Math.floor(y / S2), fy = (y - j * S2) / S2;
-    for (let x = 0; x < W; x++) {
-      const i = Math.floor(x / S2), fx = (x - i * S2) / S2, k = j * nx + i;
-      const cx = (gx[k] * (1 - fx) + gx[k + 1] * fx) * (1 - fy) + (gx[k + nx] * (1 - fx) + gx[k + nx + 1] * fx) * fy;
-      const cy = (gy[k] * (1 - fx) + gy[k + 1] * fx) * (1 - fy) + (gy[k + nx] * (1 - fx) + gy[k + nx + 1] * fx) * fy;
-      let v;
-      if (bil) { // 10 m 자료는 부드럽게 보간
-        const u = cx - 0.5, t = cy - 0.5, c0 = Math.floor(u), r0 = Math.floor(t); if (c0 < 0 || r0 < 0 || c0 + 1 >= w || r0 + 1 >= h) continue;
-        const a = D[r0 * w + c0], b = D[r0 * w + c0 + 1], c = D[(r0 + 1) * w + c0], d = D[(r0 + 1) * w + c0 + 1];
-        if (a === ND_NODATA || b === ND_NODATA || c === ND_NODATA || d === ND_NODATA) { const nn = D[Math.floor(cy) * w + Math.floor(cx)]; if (nn === ND_NODATA) continue; v = nn; }
-        else { const uu = u - c0, tt = t - r0; v = (a * (1 - uu) + b * uu) * (1 - tt) + (c * (1 - uu) + d * uu) * tt; }
-      } else { const c0 = Math.floor(cx), r0 = Math.floor(cy); if (c0 < 0 || r0 < 0 || c0 >= w || r0 >= h) continue; v = D[r0 * w + c0]; if (v === ND_NODATA) continue; }
-      out[y * W + x] = v / 10000; any = true;
+  const tr = ol.proj.getTransform('EPSG:3857', L.crs), S2 = 32, nx = Math.ceil(W / S2) + 1, ny = Math.ceil(H / S2) + 1, px = new Float64Array(nx * ny), py = new Float64Array(nx * ny);
+  for (let j = 0; j < ny; j++) for (let i = 0; i < nx; i++) { const p = tr([ox + i * S2 * res, oy - j * S2 * res]); px[j * nx + i] = p[0]; py[j * nx + i] = p[1]; }
+  const out = new Float32Array(W * H).fill(NaN), bil = L.res > 3; let any = false;
+  for (const T of ndTiles(L)) {
+    if (T.e3857 && !ol.extent.intersects(be, T.e3857)) continue;
+    const D = T.data, w = T.w, h = T.h, g = T.gt;
+    for (let y = 0; y < H; y++) {
+      const j = Math.floor(y / S2), fy = (y - j * S2) / S2;
+      for (let x = 0; x < W; x++) {
+        const o = y * W + x; if (out[o] === out[o]) continue;
+        const i = Math.floor(x / S2), fx = (x - i * S2) / S2, k = j * nx + i;
+        const X = (px[k] * (1 - fx) + px[k + 1] * fx) * (1 - fy) + (px[k + nx] * (1 - fx) + px[k + nx + 1] * fx) * fy;
+        const Y = (py[k] * (1 - fx) + py[k + 1] * fx) * (1 - fy) + (py[k + nx] * (1 - fx) + py[k + nx + 1] * fx) * fy;
+        const cx = (X - g[0]) / g[1], cy = (Y - g[2]) / g[3];
+        let v;
+        if (bil) { // 10 m 자료는 부드럽게 보간
+          const u = cx - 0.5, t = cy - 0.5, c0 = Math.floor(u), r0 = Math.floor(t); if (c0 < 0 || r0 < 0 || c0 + 1 >= w || r0 + 1 >= h) continue;
+          const a = D[r0 * w + c0], b = D[r0 * w + c0 + 1], c = D[(r0 + 1) * w + c0], d = D[(r0 + 1) * w + c0 + 1];
+          if (a === ND_NODATA || b === ND_NODATA || c === ND_NODATA || d === ND_NODATA) { const nn = D[Math.floor(cy) * w + Math.floor(cx)]; if (nn === ND_NODATA) continue; v = nn; }
+          else { const uu = u - c0, tt = t - r0; v = (a * (1 - uu) + b * uu) * (1 - tt) + (c * (1 - uu) + d * uu) * tt; }
+        } else { const c0 = Math.floor(cx), r0 = Math.floor(cy); if (c0 < 0 || r0 < 0 || c0 >= w || r0 >= h) continue; v = D[r0 * w + c0]; if (v === ND_NODATA) continue; }
+        out[o] = v / 10000; any = true;
+      }
     }
   }
   return any ? out : null;
+}
+// 국토위성 ARD(국토정보플랫폼 Zip: 밴드별 TIF + Aux.xml) → 2 m NDVI. 여러 장을 한 번에 올리면 한 자료(타일 묶음)로 만듦
+async function addArdZips(files) {
+  const tiles = [], dates = new Set(); let crs = null, gsd = 2, bad = 0, cloud = 0;
+  for (let k = 0; k < files.length; k++) {
+    const f = files[k];
+    setTask(`국토위성 ARD → NDVI ${k + 1}/${files.length} (${f.name})`, 5 + 85 * k / files.length);
+    try {
+      const z = await JSZip.loadAsync(f), names = Object.keys(z.files);
+      const pick = (suf) => names.find((n) => n.toLowerCase().endsWith(suf));
+      const nAux = pick('_aux.xml'), nR = pick('_r.tif'), nN = pick('_n.tif'); if (!nAux || !nR || !nN) { bad++; continue; }
+      const xml = new DOMParser().parseFromString(await z.file(nAux).async('string'), 'text/xml'), q = (el, s) => { const x = el.querySelector(s); return x ? x.textContent.trim() : ''; };
+      const cs = 'EPSG:' + q(xml, 'CoordinateReferenceSystem CSCode'); if (!ndCrs(cs)) throw new Error('좌표계 ' + cs + ' 정의 없음');
+      if (crs && crs !== cs) { bad++; continue; } crs = cs;
+      const img = [...xml.querySelectorAll('Image > *')].find((el) => /_R\.tif$/i.test(q(el, 'ImageFileName'))) || xml;
+      const gx = +q(img, 'ImageGSD Column') || 2, gy = Math.abs(+q(img, 'ImageGSD Row') || 2); gsd = gx;
+      const ul = [+q(img, 'ImagingCoordinates UpperLeft Longitude'), +q(img, 'ImagingCoordinates UpperLeft Latitude')];
+      const [x0, y0] = ol.proj.transform(ul, 'EPSG:4326', cs);
+      const rd = async (n) => { const tf = await GeoTIFF.fromArrayBuffer(await z.file(n).async('arraybuffer')), im = await tf.getImage(); return { a: (await im.readRasters({ samples: [0] }))[0], w: im.getWidth(), h: im.getHeight() }; };
+      const R = await rd(nR), N = await rd(nN), nV = pick('_validdata.tif'), nC = pick('_cloudmaphigh.tif');
+      const V = nV ? (await rd(nV)).a : null, C = nC ? (await rd(nC)).a : null;
+      const w = R.w, h = R.h, data = new Int16Array(w * h).fill(ND_NODATA);
+      for (let i = 0; i < w * h; i++) {
+        if (V && V[i] !== 1) continue; if (C && C[i]) { cloud++; continue; }
+        const r = R.a[i], n = N.a[i]; if (!(r + n > 0)) continue;
+        data[i] = Math.round(10000 * Math.max(-1, Math.min(1, (n - r) / (n + r))));
+      }
+      tiles.push({ gt: [x0, gx, y0, -gy], w, h, data, id: f.name.replace(/\.zip$/i, '') });
+      const dt = (q(xml, 'AcquisitionDate') || '').replace(/(\d{4})(\d\d)(\d\d)/, '$1-$2-$3'); if (dt) dates.add(dt);
+    } catch (e) { console.error(e); bad++; }
+    if ((k & 3) === 3) await tick();
+  }
+  if (!tiles.length) { clearTask('불러오기 실패'); toast('국토위성 ARD Zip에서 적색·근적외(_R.tif·_N.tif)와 Aux.xml을 찾지 못함', 'err'); return null; }
+  const ds = [...dates].sort(), id = 'N' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
+  setTask('국토위성 NDVI — 지도에 그리는 중', 90);
+  const L = await addNdviLayer({ id, cat: 'veg', name: `국토위성 ARD NDVI ${tiles.length}장`, src: 'ard', res: gsd, crs, tiles, order: Date.now(), note: `촬영 ${ds[0]}${ds.length > 1 ? '~' + ds[ds.length - 1] : ''} · 근적외(N)·적색(R) 밴드로 계산${bad ? ` · 읽지 못한 Zip ${bad}개` : ''}` });
+  if (!L) return null;
+  const st = ndStats(L); view.fit(L.extent, { padding: [30, 30, 30, 30], duration: 300 });
+  clearTask(`${L.name} 불러옴`);
+  toast(`${L.name}: 화소 ${gsd} m · NDVI 중앙값 ${st.p50.toFixed(2)} (하위 10% ${st.p10.toFixed(2)} ~ 상위 10% ${st.p90.toFixed(2)})${bad ? ` · 읽지 못한 Zip ${bad}개` : ''}`);
+  return L;
 }
 async function ndviLoadUI(where, season) {
   let ext;
@@ -2044,13 +2100,14 @@ async function addFiles(cid, fileList) {
   const tifs = files.filter((f) => /\.tiff?$/i.test(f.name));
   if (tifs.length && !(CAT[cid].raster || CAT[cid].vecRaster || CAT[cid].ndvi)) { toast('GeoTIFF 영상은 “위성·항공영상”·“과거지도” 탭, 근적외(NIR)·NDVI 영상은 “현존식생” 탭에 올릴 것', 'warn'); return; }
   for (const f of tifs) { if (CAT[cid].ndvi) await addNdviTif(f); else await addRaster(f, null, cid); }
+  if (CAT[cid].ndvi) { const ard = files.filter((f) => /\.zip$/i.test(f.name) && /L3A/i.test(f.name)); if (ard.length) { await addArdZips(ard); files.splice(0, files.length, ...files.filter((f) => !ard.includes(f))); if (!files.length) return; } }
   const groups = new Map();
   for (const f of files) {
     if (/\.tiff?$/i.test(f.name)) continue;
     if (/\.(zip|geojson|json)$/i.test(f.name)) { groups.set(f.name, [f]); continue; }
     if (/\.(shp|dbf|prj|cpg|shx)$/i.test(f.name)) { const b = f.name.replace(/\.[^.]+$/, ''); if (!groups.has(b)) groups.set(b, []); groups.get(b).push(f); }
   }
-  if (!groups.size && !tifs.length) return toast('SHP(.shp·.dbf·.prj 묶음 또는 ZIP), GeoJSON, GeoTIFF만 올릴 수 있음', 'warn');
+  if (!groups.size && !tifs.length) return CAT[cid].ndvi && !files.length ? null : toast('SHP(.shp·.dbf·.prj 묶음 또는 ZIP), GeoJSON, GeoTIFF만 올릴 수 있음', 'warn');
   if (cid === 'img' && groups.size) { toast('벡터 자료는 해당 주제 탭에 올릴 것 — 지금 탭은 영상 전용', 'warn'); return; }
   for (const [name, fs] of groups) {
     if (!fs.some((f) => /\.(shp|zip|geojson|json)$/i.test(f.name))) { toast(name + ': .shp 파일이 빠짐', 'warn'); continue; }
@@ -2239,13 +2296,13 @@ function renderPanel() {
     h += `<div class="ndbox"><b>식생지수(NIR·NDVI) 자료</b><p>근적외선(NIR)으로 계산한 NDVI로 식생과 비식생(도로·맨땅·시가지)을 가름. 임도 따기에서 영상 색·질감 판독과 함께 참고함.</p>
       <div class="row" style="gap:6px;flex-wrap:wrap"><select class="sel" id="ndWhere"><option value="view">지금 화면 범위</option>${hasArea ? '<option value="area" selected>작업 구역 범위</option>' : ''}</select><select class="sel" id="ndSeason"><option value="leaf">생장기(6~9월) 최신 장면</option><option value="latest">최근 150일 최신 장면</option></select></div>
       <button class="btn" id="ndS2" style="width:100%;margin-top:6px">Sentinel-2 NDVI 불러오기 (10 m · 키 불필요)</button>
-      <div class="drop" id="ndDrop" style="margin-top:8px"><b>근적외 밴드 영상 올리기</b>국토위성·아리랑·항공·드론 4~5밴드 GeoTIFF 또는 NDVI GeoTIFF (.tif)</div>
+      <div class="drop" id="ndDrop" style="margin-top:8px"><b>근적외 밴드 영상 올리기</b>국토정보플랫폼 국토위성 ARD Zip(여러 개 한 번에) · 아리랑·항공·드론 4~5밴드 GeoTIFF · NDVI GeoTIFF</div>
       <div class="ndleg"><span>비식생</span><i></i><span>식생</span></div>
       <div class="m">10 m 자료는 폭 3~6 m 임도를 직접 그리지는 못하고, 판독한 임도 후보가 정말 숲 속 비식생인지·주변이 숲인지 확인하는 데 씀. 3 m 이하 고해상 자료를 올리면 화소 단위로 함께 판독함.</div></div>`;
   }
   if (!ls.length) h += `<div class="empty">아직 올린 자료 없음</div>`;
   h += ls.map((L) => L.kind === 'ndvi' ? `<div class="lyr" data-id="${L.id}"><div class="h"><input type="checkbox" data-a="vis" ${L.visible ? 'checked' : ''}><b title="${esc(L.name)}">${esc(L.name)}</b><button class="ib" data-a="zoom" title="이 자료로 이동">⌖</button><button class="ib" data-a="del" title="삭제">✕</button></div>
-      <div class="m">NDVI · 화소 ${fmt(L.res, L.res < 3 ? 2 : 0)} m · ${fmt(L.w)}×${fmt(L.h)} · ${esc(L.crs)}${L.note ? ' · ' + esc(L.note) : ''}</div><div class="r">투명도<input type="range" min="0" max="1" step="0.05" value="${L.opacity}" data-a="op"></div></div>`
+      <div class="m">NDVI · 화소 ${fmt(L.res, L.res < 3 ? 2 : 0)} m · ${L.tiles ? `타일 ${fmt(L.tiles.length)}장` : `${fmt(L.w)}×${fmt(L.h)}`} · ${esc(L.crs)}${L.note ? ' · ' + esc(L.note) : ''}</div><div class="r">투명도<input type="range" min="0" max="1" step="0.05" value="${L.opacity}" data-a="op"></div></div>`
     : L.kind === 'raster' ? `<div class="lyr" data-id="${L.id}"><div class="h"><input type="checkbox" data-a="vis" ${L.visible ? 'checked' : ''}><b title="${esc(L.name)}">${esc(L.name)}</b><button class="ib" data-a="zoom" title="이 영상으로 이동">⌖</button><button class="ib" data-a="del" title="삭제">✕</button></div>
       <div class="m">GeoTIFF · ${fmt(L.size / 1048576, 1)} MB</div><div class="r">투명도<input type="range" min="0" max="1" step="0.05" value="${L.opacity}" data-a="op"></div></div>`
     : `<div class="lyr" data-id="${L.id}"><div class="h"><input type="checkbox" data-a="vis" ${L.visible ? 'checked' : ''}><input type="color" class="sw" value="${esc(L.color)}" data-a="col" title="색"><b title="${esc(L.name)}">${esc(L.name)}</b><button class="ib" data-a="zoom" title="이 자료로 이동">⌖</button><button class="ib" data-a="del" title="삭제">✕</button></div>
@@ -2258,7 +2315,7 @@ function renderPanel() {
   const drop = $('#drop', p), inp = document.createElement('input'); inp.type = 'file'; inp.multiple = true; inp.accept = c.raster ? '.tif,.tiff' : '.shp,.dbf,.prj,.cpg,.shx,.zip,.geojson,.json' + (c.vecRaster || c.ndvi ? ',.tif,.tiff' : '');
   inp.onchange = () => addFiles(c.id, inp.files);
   if (c.ndvi) {
-    const nd = $('#ndDrop', p), ni = document.createElement('input'); ni.type = 'file'; ni.multiple = true; ni.accept = '.tif,.tiff';
+    const nd = $('#ndDrop', p), ni = document.createElement('input'); ni.type = 'file'; ni.multiple = true; ni.accept = '.tif,.tiff,.zip';
     ni.onchange = () => addFiles(c.id, ni.files); nd.onclick = () => ni.click();
     nd.ondragover = (e) => { e.preventDefault(); nd.classList.add('over'); }; nd.ondragleave = () => nd.classList.remove('over');
     nd.ondrop = (e) => { e.preventDefault(); nd.classList.remove('over'); addFiles(c.id, e.dataTransfer.files); };
@@ -2528,7 +2585,7 @@ function guideHTML() {
 
 
 // ---------- 실시간 진행 표시(지도 위) ----------
-const APP_VER = '2026.11.20-1';
+const APP_VER = '2026.11.20-2';
 const LIVE = { src: new ol.source.Vector({ wrapX: false }) };
 LIVE.styles = {
   tgt: new ol.style.Style({ stroke: new ol.style.Stroke({ color: 'rgba(255,255,255,.9)', width: 1.2, lineDash: [5, 4] }) }),
