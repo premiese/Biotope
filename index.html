@@ -1366,10 +1366,17 @@ function areaLayer(m) {
   const ring = (r) => { const a = r.map((q) => { const p = tr.forward([q[0], q[1]]); return XY(p[0], p[1]); }); if (!a[0].equals2D(a[a.length - 1])) a.push(a[0].copy()); return GF.createLinearRing(a); };
   const ps = [];
   for (const poly of m.polys) { try { const g = GF.createPolygon(ring(poly[0]), poly.slice(1).map(ring)); ps.push(g.isValid() ? g : g.buffer(0)); } catch (e) { } }
-  const u = polysOnly(unionAll(ps));
+  let u = polysOnly(unionAll(ps));
+  const IL = m.inter && LAYERS.get(m.inter); // 기존 작업 구역·자르기 레이어와 겹치는 부분만(중지 시점까지 결과용)
+  if (u && IL) { const parts = []; for (let f = 0; f < IL.n; f++) { const g = toJsts(IL, f); if (g) parts.push(g.isValid() ? g : g.buffer(0)); } const ui = parts.length ? unionAll(parts) : null; u = ui ? polysOnly(u.intersection(ui)) : null; }
   if (u) for (let i = 0; i < u.getNumGeometries(); i++) X.items.push({ src: -1, g: u.getGeometryN(i), mod: true, dead: false, fc: null, crit: [], chk: [] });
   const tl = itemsToLayer(X), lay = tl.L; lay.fields = []; lay.cols = []; lay.srcCrs = WORK_CRS; LAYERS.set(m.id, lay);
-  post({ type: 'area', job: m.job, id: m.id, n: lay.n, area: lay.n ? Array.from({ length: lay.n }, (_, i) => featArea(lay, i)).reduce((a, b) => a + b, 0) : 0 });
+  let polys4326 = null;
+  if (m.ret && u) { // 합친 범위를 경위도 폴리곤으로 돌려줌(중지 시점까지의 가상 기준 경계용)
+    polys4326 = []; const rr = (ls) => ls.getCoordinates().map((c) => { const p = tr.inverse([c.x, c.y]); return [p[0], p[1]]; });
+    for (let i = 0; i < u.getNumGeometries(); i++) { const g = u.getGeometryN(i); const pl = [rr(g.getExteriorRing())]; for (let h = 0; h < g.getNumInteriorRing(); h++) pl.push(rr(g.getInteriorRingN(h))); polys4326.push(pl); }
+  }
+  post({ type: 'area', job: m.job, id: m.id, polys: polys4326, n: lay.n, area: lay.n ? Array.from({ length: lay.n }, (_, i) => featArea(lay, i)).reduce((a, b) => a + b, 0) : 0 });
 }
 // 매끄러운 곡선: Chaikin 모서리 깎기(선은 끝점 유지, 면은 닫힌 고리)
 function chaikinLine(pts, it) {
@@ -1717,7 +1724,7 @@ let taskT = 0;
 function setTask(text, pct) {
   $('#taskTxt').textContent = text + (pct != null ? ` · ${Math.round(pct)}%` : '');
   const b = $('#taskBar'); b.firstChild.style.width = (pct == null ? 100 : pct) + '%'; b.classList.toggle('run', pct != null && pct < 100);
-  $('#stMsg').textContent = text; clearTimeout(taskT);
+  $('#stMsg').textContent = text; clearTimeout(taskT); if (typeof syncStopUI === 'function') syncStopUI();
 }
 function clearTask(text) { setTask(text || '대기 중', 100); $('#taskBar').classList.remove('run'); taskT = setTimeout(() => { $('#taskTxt').textContent = '대기 중'; $('#taskBar').firstChild.style.width = '0'; $('#stMsg').textContent = '준비됨'; }, 4000); }
 
@@ -2393,6 +2400,7 @@ function renderStepper() {
   $('#steps').innerHTML = st.map(([t, v, s]) => `<div class="stp"><div class="l"><b>${t}</b><span>${esc(s)} · ${Math.round(v)}%</span></div><div class="bar ${t.startsWith('③') && o.run && o.run.state === 'run' ? 'run' : ''}"><i style="width:${v}%"></i></div></div>`).join('');
 }
 function renderOutputs() {
+  syncStopUI();
   const o = curOut();
   let h = `<div class="rh"><h3>최종 성과품 선택</h3><button class="btn" id="addOut" title="지도 종류를 직접 만들어 추가">+ 지도 추가</button></div>
     <div class="pick">${S.outputs.map((x) => `<button class="pk ${x.id === o.id ? 'on' : ''}" data-o="${x.id}" title="${esc(x.name)}">${esc(x.short || x.name)}${S.results[x.id] ? '<i title="도출 결과 있음"></i>' : ''}</button>`).join('')}</div>`;
@@ -2414,7 +2422,7 @@ function renderOutputs() {
     <select class="sel" id="oSamp">${[[25, '빠름 — 폴리곤당 최대 25점'], [100, '보통 — 최대 100점 (권장)'], [400, '정밀 — 최대 400점']].map(([v, t]) => `<option value="${v}" ${(o.samples || 100) == v ? 'selected' : ''}>${t}</option>`).join('')}</select>
     <label class="f">규칙에 쓰인 기초자료 <span style="font-weight:400">(초록=있음, 주황=없음 — 없으면 해당 조건은 건너뜀)</span></label>
     <div class="need">${p.need.map((k) => { const c = DATA_CATS.find((x) => x.key === k); return `<span class="${hasKey(k) ? 'y' : 'n'}" data-cat="${c.id}">${hasKey(k) ? '✓' : '＋'} ${esc(c.name)}</span>`; }).join('') || '<span>없음</span>'}</div>
-    <div class="row" style="margin-top:12px"><button class="btn pri block" id="oRun" ${(!bases.length && !(o.criteria || []).some((c) => c.on && c.op === 'imgroad')) || run ? 'disabled' : ''}>${run ? `도출 중 ${Math.round(o.run.pct)}%` : res ? (p.stale ? '⚠ 기준이 바뀜 — 결과 다시 도출' : '결과 다시 도출') : '이 지도로 결과 도출'}</button>${run ? '<button class="btn" id="oStop">중지</button>' : ''}</div>
+    <div class="row" style="margin-top:12px"><button class="btn pri block" id="oRun" ${(!bases.length && !(o.criteria || []).some((c) => c.on && c.op === 'imgroad')) || run ? 'disabled' : ''}>${run ? `도출 중 ${Math.round(o.run.pct)}%` : res ? (p.stale ? '⚠ 기준이 바뀜 — 결과 다시 도출' : '결과 다시 도출') : '이 지도로 결과 도출'}</button>${run ? `<button class="btn" id="oStop" title="영상 판독 중이면 여기까지 판독한 구역만으로 결과를 만듦">${o.run.job ? '중지' : '■ 중지 — 여기까지'}</button>` : ''}</div>
     ${res ? `<div class="row" style="margin-top:6px"><button class="btn pri block" data-dl="shp" style="background:#0b6bcb;border-color:#0b6bcb">⬇ 고친 경계 SHP 내려받기 (${fmt(res.nShown ?? res.n)}개 폴리곤)</button></div>` : ''}
     <div class="row" style="margin-top:6px"><button class="btn" id="oRules" style="flex:1">유형 판정 규칙 (${o.rules.length}개)</button>${res ? `<button class="btn" id="oVis" style="flex:1">${res.layer && res.layer.getVisible() ? '결과 숨기기' : '결과 보기'}</button>` : ''}</div>`;
   if (res) {
@@ -2442,7 +2450,7 @@ function renderOutputs() {
   $('#oSamp', R).onchange = (e) => { o.samples = +e.target.value; saveOutputs(); renderOutputs(); renderStepper(); };
   $$('.need span[data-cat]', R).forEach((s) => s.onclick = () => { S.cat = s.dataset.cat; renderRail(); renderPanel(); });
   $('#oRun', R).onclick = () => runOutput(o);
-  const stop = $('#oStop', R); if (stop) stop.onclick = () => { if (o.run) { o.run.stop = true; if (o.run.job) worker.postMessage({ type: 'cancel', job: o.run.job }); } };
+  const stop = $('#oStop', R); if (stop) stop.onclick = () => runStop(o, 'part');
   $('#oRules', R).onclick = () => rulesDialog(o);
   const vb = $('#oVis', R); if (vb) vb.onclick = () => { res.layer.setVisible(!res.layer.getVisible()); renderOutputs(); };
   const op = $('#oOp', R); if (op) op.oninput = () => res.layer.setOpacity(+op.value);
@@ -2615,7 +2623,7 @@ function guideHTML() {
 
 
 // ---------- 실시간 진행 표시(지도 위) ----------
-const APP_VER = '2026.11.20-4';
+const APP_VER = '2026.11.20-5';
 const LIVE = { src: new ol.source.Vector({ wrapX: false }) };
 LIVE.styles = {
   tgt: new ol.style.Style({ stroke: new ol.style.Stroke({ color: 'rgba(255,255,255,.9)', width: 1.2, lineDash: [5, 4] }) }),
@@ -2725,15 +2733,15 @@ async function imgRoadExtract(o, c, base) {
   if (NS && !NS.fine.length && !NS.coarse) { if (ndMode === 'upload') ndWhy = '현존식생 탭에 이 범위를 덮는 NIR·NDVI 자료가 없음'; NS = null; }
   const ndSt = { rej: 0, ok: 0, nv: 0, blocks: 0, bridged: 0 };
   // 8×8 타일 블록(+둘레 1타일 여유)씩 처리
-  const BS = 8, blocks = new Map();
+  const BS = 8, blocks = new Map(), doneR = []; let stopped = false; const ox0b = (bx, by) => { const a = (bx * BS) * tm - WM, b = WM - (by * BS) * tm; return [a, b - BS * tm, a + BS * tm, b]; }; // 판독을 마친 블록 핵심 범위(3857)
   for (const [x, y] of tiles.values()) { const k = Math.floor(x / BS) + ',' + Math.floor(y / BS); if (!blocks.has(k)) blocks.set(k, [Math.floor(x / BS), Math.floor(y / BS)]); }
   const lines = [], hws = []; let done = 0, nb = 0, fetched = 0;
   const gres = res * groundScale(tiles, tm); // 웹메르카토르 화소 → 실제 지상 거리(m)
   const edgePx = Math.max(0, (p.edge == null ? 15 : +p.edge) / gres);
   const hw = Math.max(1, (+p.maxWidth || 12) / 2 / gres), minLen = (+p.minLen || 40) / gres, minA = (+p.minArea || 60) / gres / gres, sens = +p.sens || 2;
   for (const [bx, by] of blocks.values()) {
-    if (o.run && o.run.stop) throw { cancelled: true };
-    nb++; setTask(`${c.title} — 영상 판독 블록 ${nb}/${blocks.size} (타일 ${fmt(fetched)}/${fmt(tiles.size)})`, 100 * done / tiles.size * 0.95);
+    if (o.run && o.run.stop) { if (o.run.stop === 'all') throw { cancelled: true }; stopped = true; break; }
+    nb++; doneR.push(ox0b(bx, by)); setTask(`${c.title} — 영상 판독 블록 ${nb}/${blocks.size} (타일 ${fmt(fetched)}/${fmt(tiles.size)})`, 100 * done / tiles.size * 0.95);
     const b = $('#oRun'); if (b) b.textContent = `영상 판독 중 ${Math.round(100 * done / tiles.size)}%`;
     const tx0 = bx * BS - 1, ty0 = by * BS - 1, NT = BS + 2, W = NT * 256, H = W;
     const ox = tx0 * tm - WM, oy = WM - ty0 * tm; // 블록 왼쪽 위(3857)
@@ -2782,6 +2790,7 @@ async function imgRoadExtract(o, c, base) {
     await tick();
   }
   LIVE.src.removeFeature(blkF);
+  if (stopped && !lines.length) throw { cancelled: true, msg: '중지함 — 판독한 구역에서 아직 찾은 임도가 없음' };
   liveMsg(`<b>${esc(c.title)}</b> — 찾은 임도 조각 ${fmt(foundN)}개를 폴리곤으로 바꾸는 중`);
   setTask(`${c.title} — 찾은 임도를 폴리곤으로 바꾸는 중`, 96);
   const id = 'ROAD-' + o.id + '-' + Date.now().toString(36);
@@ -2796,9 +2805,9 @@ async function imgRoadExtract(o, c, base) {
   const ndTxt = NS ? ` · NDVI 종합: ${ndNames}${ndSt.nv ? ` · 비식생 판정으로 숲에서 뺀 면적 약 ${fmt(ndSt.nv * gres * gres / 1e4, 1)} ha` : ''}${ndSt.rej ? ` · 식생으로 보여 뺀 후보 ${fmt(ndSt.rej)}개` : ''}` : ndWhy ? ' · NDVI 미사용' : '';
   const out = { id, n: r.n, width: out_w, ndTxt, tiles: fetched, need: tiles.size, geom: { coords: r.coords.slice(), ringStart: r.ringStart.slice(), featRing: r.featRing.slice(), outer: r.outer.slice(), n: r.n } };
   if (r.n) { liveClear(); const tmp = { geom: 'poly', name: '임도' }; await buildFeatures(tmp, out.geom); tmp.features.forEach((ft) => LIVE.src.addFeature(new ol.Feature({ geometry: ft.getGeometry(), k: 'road' }))); }
-  ROAD_CACHE.set(key, out);
-  if (fetched < tiles.size * 0.5) toast(`영상 타일을 ${fmt(fetched)}/${fmt(tiles.size)}장만 받음 — 인터넷·브이월드 키 확인`, 'warn');
-  toast(`${c.title}: 영상 타일 ${fmt(fetched)}장 판독 → 숲 안쪽 임도 ${fmt(r.n)}개 · 폭 ${out_w} m로 통일${ndSt.bridged ? ` · 영상에서 길을 따라 ${fmt(ndSt.bridged)}군데 이음` : ''}${r.joined ? ` · 끊긴 곳 ${fmt(r.joined)}군데 이음` : ''}${ndTxt}`);
+  if (stopped) out.partial = { done: nb, total: blocks.size, rects: doneR }; else ROAD_CACHE.set(key, out);
+  if (!stopped && fetched < tiles.size * 0.5) toast(`영상 타일을 ${fmt(fetched)}/${fmt(tiles.size)}장만 받음 — 인터넷·브이월드 키 확인`, 'warn');
+  toast(`${c.title}: ${stopped ? `중지 — ${fmt(nb)}/${fmt(blocks.size)} 구역까지 ` : ''}영상 타일 ${fmt(fetched)}장 판독 → 숲 안쪽 임도 ${fmt(r.n)}개 · 폭 ${out_w} m로 통일${ndSt.bridged ? ` · 영상에서 길을 따라 ${fmt(ndSt.bridged)}군데 이음` : ''}${r.joined ? ` · 끊긴 곳 ${fmt(r.joined)}군데 이음` : ''}${ndTxt}`);
   return out;
 }
 
@@ -2826,15 +2835,15 @@ async function imgChangeExtract(o, c, base) {
   const toS = ol.proj.getTransform('EPSG:3857', S.crs);
   if (p.scope !== 'view') { let ext = ol.extent.createEmpty(); polys.forEach((q) => ol.extent.extend(ext, base.features[q.f].getGeometry().getExtent())); view.fit(ext, { padding: [60, 60, 60, 60], duration: 500 }); }
   const blkF = new ol.Feature({ geometry: new ol.geom.Polygon([[[0, 0], [0, 0], [0, 0], [0, 0]]]), k: 'blk' }); LIVE.src.addFeature(blkF);
-  const BS = 8, blocks = new Map();
+  const BS = 8, blocks = new Map(), doneR = []; let stopped = false; const ox0b = (bx, by) => { const a = (bx * BS) * tm - WM, b = WM - (by * BS) * tm; return [a, b - BS * tm, a + BS * tm, b]; }; // 판독을 마친 블록 핵심 범위(3857)
   for (const [x, y] of tiles.values()) { const k = Math.floor(x / BS) + ',' + Math.floor(y / BS); if (!blocks.has(k)) blocks.set(k, [Math.floor(x / BS), Math.floor(y / BS)]); }
   const rects = [], compStart = [0], labels = []; let nb = 0, done = 0, fetched = 0, found = 0;
   const gres = res * groundScale(tiles, tm);
   const edgePx = Math.max(1, Math.round((+p.edge || 3) / gres)), minA = (+p.minArea || 300) / gres / gres, sens = +p.sens || 3;
   const msg = () => liveMsg(`<b>${esc(c.title)}</b> — 영상 판독 중 ${nb}/${blocks.size} 구역 · 달라진 부분 ${fmt(found)}곳<br><span style="opacity:.75">하늘색 네모: 지금 보는 구역 · 주황색: 과거지도와 달라진 부분</span>`);
   for (const [bx, by] of blocks.values()) {
-    if (o.run && o.run.stop) throw { cancelled: true };
-    nb++; setTask(`${c.title} — 영상 판독 ${nb}/${blocks.size} 구역`, 95 * done / tiles.size);
+    if (o.run && o.run.stop) { if (o.run.stop === 'all') throw { cancelled: true }; stopped = true; break; }
+    nb++; doneR.push(ox0b(bx, by)); setTask(`${c.title} — 영상 판독 ${nb}/${blocks.size} 구역`, 95 * done / tiles.size);
     const b = $('#oRun'); if (b) b.textContent = `영상 판독 중 ${Math.round(100 * done / tiles.size)}%`;
     const tx0 = bx * BS - 1, ty0 = by * BS - 1, NT = BS + 2, W = NT * 256, H = W;
     const ox = tx0 * tm - WM, oy = WM - ty0 * tm;
@@ -2870,12 +2879,13 @@ async function imgChangeExtract(o, c, base) {
     msg(); await tick();
   }
   LIVE.src.removeFeature(blkF);
+  if (stopped && !found) throw { cancelled: true, msg: '중지함 — 판독한 구역에서 아직 찾은 것이 없음' };
   liveMsg(`<b>${esc(c.title)}</b> — 달라진 부분 ${fmt(found)}곳을 폴리곤으로 바꾸는 중`);
   const id = 'CHG-' + o.id + '-' + Date.now().toString(36);
   const r = await wjob({ type: 'roadvec', id, rects: Float64Array.from(rects), compStart: Uint32Array.from(compStart), labels, tol: res * 1.2, minArea: +p.minArea || 0 }, (pct, t) => setTask(`${c.title} — ${t}`, 96 + pct * 0.04));
   const out = { id, n: r.n, tiles: fetched, need: tiles.size, geom: { coords: r.coords.slice(), ringStart: r.ringStart.slice(), featRing: r.featRing.slice(), outer: r.outer.slice(), n: r.n } };
-  ROAD_CACHE.set(key, out);
-  if (fetched < tiles.size * 0.5) toast(`영상 타일을 ${fmt(fetched)}/${fmt(tiles.size)}장만 받음 — 인터넷·브이월드 키 확인`, 'warn');
+  if (stopped) out.partial = { done: nb, total: blocks.size, rects: doneR }; else ROAD_CACHE.set(key, out);
+  if (!stopped && fetched < tiles.size * 0.5) toast(`영상 타일을 ${fmt(fetched)}/${fmt(tiles.size)}장만 받음 — 인터넷·브이월드 키 확인`, 'warn');
   toast(`${c.title}: 영상 타일 ${fmt(fetched)}장 판독 → 달라진 부분 ${fmt(r.n)}곳`);
   return out;
 }
@@ -3062,7 +3072,7 @@ async function imgSnapExtract(o, c, base) {
   const toS = ol.proj.getTransform('EPSG:3857', S.crs);
   if (p.scope !== 'view') view.fit(ol.proj.transformExtent(aExt, 'EPSG:3857', S.crs), { padding: [60, 60, 60, 60], duration: 500 });
   const blkF = new ol.Feature({ geometry: new ol.geom.Polygon([[[0, 0], [0, 0], [0, 0], [0, 0]]]), k: 'blk' }); LIVE.src.addFeature(blkF);
-  const BS = 6, blocks = new Map();
+  const BS = 6, blocks = new Map(), doneR = []; let stopped = false; const ox0b = (bx, by) => { const a = (bx * BS) * tm - WM, b = WM - (by * BS) * tm; return [a, b - BS * tm, a + BS * tm, b]; };
   for (const [x, y] of tiles.values()) { const k = Math.floor(x / BS) + ',' + Math.floor(y / BS); if (!blocks.has(k)) blocks.set(k, [Math.floor(x / BS), Math.floor(y / BS)]); }
   const rects = [], compStart = [0], labels = []; let nb = 0, done = 0, fetched = 0, found = 0;
   const gres = res * groundScale(tiles, tm);
@@ -3070,8 +3080,8 @@ async function imgSnapExtract(o, c, base) {
   const can = (a, b) => polys[a - 1].ok || polys[b - 1].ok;
   const msg = () => liveMsg(`<b>${esc(c.title)}</b> — 영상 판독 중 ${nb}/${blocks.size} 구역 · 옮길 경계 ${fmt(found)}곳<br><span style="opacity:.75">하늘색 네모: 지금 보는 구역 · 청록색: 영상 경계를 따라 이웃 폴리곤으로 넘어가는 부분</span>`);
   for (const [bx, by] of blocks.values()) {
-    if (o.run && o.run.stop) throw { cancelled: true };
-    nb++; setTask(`${c.title} — 영상 판독 ${nb}/${blocks.size} 구역`, 95 * done / tiles.size);
+    if (o.run && o.run.stop) { if (o.run.stop === 'all') throw { cancelled: true }; stopped = true; break; }
+    nb++; doneR.push(ox0b(bx, by)); setTask(`${c.title} — 영상 판독 ${nb}/${blocks.size} 구역`, 95 * done / tiles.size);
     const b = $('#oRun'); if (b) b.textContent = `영상 판독 중 ${Math.round(100 * done / tiles.size)}%`;
     const tx0 = bx * BS - 1, ty0 = by * BS - 1, NT = BS + 2, W = NT * 256, H = W;
     const ox = tx0 * tm - WM, oy = WM - ty0 * tm;
@@ -3104,12 +3114,13 @@ async function imgSnapExtract(o, c, base) {
     msg(); await tick();
   }
   LIVE.src.removeFeature(blkF);
+  if (stopped && !found) throw { cancelled: true, msg: '중지함 — 판독한 구역에서 아직 찾은 것이 없음' };
   liveMsg(`<b>${esc(c.title)}</b> — 옮길 경계 ${fmt(found)}곳을 폴리곤으로 바꾸는 중`);
   const id = 'SNAP-' + o.id + '-' + Date.now().toString(36);
   const r = await wjob({ type: 'roadvec', id, rects: Float64Array.from(rects), compStart: Uint32Array.from(compStart), labels, tol: res * 0.8, minArea: 0 }, (pct, t) => setTask(`${c.title} — ${t}`, 96 + pct * 0.04));
   const out = { id, n: r.n, tiles: fetched, need: tiles.size, geom: { coords: r.coords.slice(), ringStart: r.ringStart.slice(), featRing: r.featRing.slice(), outer: r.outer.slice(), n: r.n } };
-  ROAD_CACHE.set(key, out);
-  if (fetched < tiles.size * 0.5) toast(`영상 타일을 ${fmt(fetched)}/${fmt(tiles.size)}장만 받음 — 인터넷·브이월드 키 확인`, 'warn');
+  if (stopped) out.partial = { done: nb, total: blocks.size, rects: doneR }; else ROAD_CACHE.set(key, out);
+  if (!stopped && fetched < tiles.size * 0.5) toast(`영상 타일을 ${fmt(fetched)}/${fmt(tiles.size)}장만 받음 — 인터넷·브이월드 키 확인`, 'warn');
   toast(`${c.title}: 영상 타일 ${fmt(fetched)}장 판독 → 옮길 경계 ${fmt(r.n)}곳`);
   return out;
 }
@@ -3358,15 +3369,35 @@ function skeletonLines(pix, W, spur, holeMax) {
 
 // ---------- 결과 도출 ----------
 // 기준 경계(과거 비오톱 SHP)가 없을 때: 작업 구역(없으면 지금 화면)을 폴리곤 하나로 만들어 영상·NDVI만으로 판독
-async function virtualBase(o) {
-  let polys;
-  if (o.area && AREA_TYPES[o.area.type] && o.area.type !== 'view') polys = await areaPolys(o);
+async function virtualBase(o, given, tag) {
+  let polys = given;
+  if (polys) { }
+  else if (o.area && AREA_TYPES[o.area.type] && o.area.type !== 'view') polys = await areaPolys(o);
   else { const e = ol.proj.transformExtent(view.calculateExtent(map.getSize()), S.crs, 'EPSG:4326'); polys = [[[[e[0], e[1]], [e[2], e[1]], [e[2], e[3]], [e[0], e[3]], [e[0], e[1]]]]]; }
   const gj = { type: 'FeatureCollection', features: polys.map((pl) => ({ type: 'Feature', properties: { GUBUN: '작업구역' }, geometry: { type: 'Polygon', coordinates: pl } })) };
   const buf = new TextEncoder().encode(JSON.stringify(gj)).buffer;
-  const L = await loadVector({ cat: 'old', name: `작업 구역 ${areaLabel(o) || '화면'} (기준 경계 없이 영상 판독용)`, files: { 'area.geojson': buf }, size: buf.byteLength, order: Date.now() });
-  if (L) { L.field = 'GUBUN'; L.col = colOf(L); saveMeta(L); }
+  const L = await loadVector({ cat: 'old', name: `작업 구역 ${areaLabel(o) || '화면'}${tag || ''} (기준 경계 없이 영상 판독용)`, files: { 'area.geojson': buf }, size: buf.byteLength, order: Date.now() });
+  if (L) { L.field = 'GUBUN'; L.col = colOf(L); L.virt = true; saveMeta(L); }
   return L;
+}
+// 진행 중 중지: 'part' = 영상 판독은 여기까지 한 구역으로 결과 만들기, 'all' = 버리고 취소
+function runStop(o, how) {
+  if (!o || !o.run) return;
+  if (o.run.job) { o.run.stop = 'all'; worker.postMessage({ type: 'cancel', job: o.run.job }); toast('중지함 — 마지막 결과 정리 단계라 여기까지 결과는 남지 않음', 'warn'); }
+  else { o.run.stop = how; toast(how === 'all' ? '취소하는 중…' : '지금 구역까지만 판독하고 그 결과로 정리함 — 잠시 기다릴 것'); }
+  syncStopUI();
+}
+function syncStopUI() {
+  const o = S.outputs.find((x) => x.run && x.run.state === 'run'); let el = $('#runStop');
+  if (!o) { if (el) el.remove(); return; }
+  if (!el) { el = document.createElement('div'); el.id = 'runStop'; el.style.cssText = 'position:absolute;right:52px;top:12px;z-index:6;display:flex;gap:6px;align-items:center;background:rgba(255,255,255,.96);padding:6px 8px;border-radius:10px;box-shadow:0 4px 14px rgba(0,0,0,.2);font-size:12.5px'; $('#mapwrap').appendChild(el); }
+  const st = o.run.stop ? (o.run.stop === 'all' ? 'all' : 'part') : '', ph = o.run.job ? 'job' : 'img', sig = ph + st;
+  if (el.dataset.sig === sig) return; el.dataset.sig = sig;
+  if (st) { el.innerHTML = `<span style="color:#555">${st === 'all' ? '취소하는 중…' : '중지 요청됨 — 여기까지 정리 중…'}</span>`; return; }
+  el.innerHTML = ph === 'img'
+    ? `<button class="btn pri" data-s="part" style="background:#c0392b;border-color:#c0392b">■ 중지 — 여기까지 결과 받기</button><button class="btn" data-s="all">취소</button>`
+    : `<span style="color:#555">결과 정리 중</span><button class="btn" data-s="all">중지</button>`;
+  el.querySelectorAll('[data-s]').forEach((b) => b.onclick = () => runStop(o, b.dataset.s));
 }
 async function runOutput(o, opt) {
   let base = layerById(o.base || defaultBase(o));
@@ -3379,7 +3410,7 @@ async function runOutput(o, opt) {
   const inputs = S.layers.filter((l) => l.kind === 'vector' && l.geom !== 'line').map((l) => ({ id: l.id, key: varKey(l), ascii: asciiKey(l), field: l.field }));
   const lookups = {}; S.layers.filter((l) => l.cat === 'lc').forEach((l) => lookups[varKey(l)] = LC_NAMES);
   o.run = { state: 'run', pct: 0 }; renderOutputs(); renderStepper();
-  const roads = {}, imgFail = [];
+  const roads = {}, imgFail = []; let partial = null;
   let areaId = null; CUR_AREA = null;
   if (o.area && AREA_TYPES[o.area.type]) {
     try {
@@ -3405,7 +3436,23 @@ async function runOutput(o, opt) {
         break;
       }
     }
-    if (o.run && o.run.stop) { o.run = null; clearTask('중지함'); liveClear(); liveMsg(''); renderAll(); return; }
+    if (o.run && o.run.stop) {
+      const pr = roads[c.id] && roads[c.id].partial;
+      if (o.run.stop === 'all' || !pr) { o.run = null; clearTask('중지함'); liveClear(); liveMsg(''); renderAll(); return; }
+      partial = pr; break; // 여기까지 판독한 구역만으로 결과를 만듦(남은 영상 판독 기준은 건너뜀)
+    }
+  }
+  if (partial) { // 판독을 마친 블록 범위(+작업 구역)로 결과를 잘라냄
+    try {
+      const rp = partial.rects.map((r) => { const e = ol.proj.transformExtent(r, 'EPSG:3857', 'EPSG:4326'); return [[[e[0], e[1]], [e[2], e[1]], [e[2], e[3]], [e[0], e[3]], [e[0], e[1]]]]; });
+      const pid = 'PART-' + o.id, ar = await wjob({ type: 'area', id: pid, polys: rp, inter: areaId || o.clip || null, ret: true });
+      if (!ar.n) throw new Error('판독한 구역이 작업 범위와 겹치지 않음');
+      if ((base.virt || /기준 경계 없이 영상 판독용/.test(base.name)) && ar.polys && ar.polys.length) { // 가상 기준 경계(한 덩어리)는 판독한 범위 모양으로 새로 만듦
+        const nb2 = await virtualBase(o, ar.polys, ` · 중지 시점까지 ${partial.done}/${partial.total} 구역`); if (nb2) { if (base.ol) { base.visible = false; base.ol.setVisible(false); saveMeta(base); } base = nb2; o.base = nb2.id; saveOutputs(); }
+      }
+      areaId = pid;
+      liveMsg(`<b>중지</b> — 판독을 마친 ${fmt(partial.done)}/${fmt(partial.total)} 구역(약 ${(ar.area / 1e6).toFixed(2)} km²)까지만으로 결과를 만드는 중`);
+    } catch (e) { o.run = null; clearTask('중지함'); liveClear(); renderAll(); toast('중지한 곳까지 결과를 만들지 못함: ' + (e.message || e), 'err'); return; }
   }
   const cp = critPayload(o, roads);
   const missing = cp.list.filter((c) => (c.op === 'cluster' || c.op === 'replace' || c.op === 'linecut' || c.op === 'split') && !c.layer);
@@ -3423,7 +3470,7 @@ async function runOutput(o, opt) {
   o.run.job = p.job;
   try {
     const r = await p;
-    if (r.type === 'cancelled') { o.run = null; clearTask('중지함'); renderAll(); return; }
+    if (r.type === 'cancelled') { o.run = null; clearTask('중지함'); liveMsg(''); renderAll(); return; }
     setTask(`${o.short || o.name} — 결과 그리는 중`, 99);
     dropResult(o);
     let geoms = null;
@@ -3443,7 +3490,7 @@ async function runOutput(o, opt) {
     const layer = new ol.layer.VectorImage({ source: new ol.source.Vector({ features: feats, wrapX: false }), opacity: isNew ? 0.7 : 0.8, imageRatio: 1.3, style: (ft) => { const c = colors[ft._i], w = isNew && isNew[ft._i] < 0 ? 2 : mvd && mvd[ft._i] ? 3 : chk && chk[ft._i] ? 1 : 0, k = c + w; let s = cache.get(k); if (!s) { s = new ol.style.Style({ fill: new ol.style.Fill({ color: rgba(c, isNew ? 0.45 : 1) }), stroke: new ol.style.Stroke(w === 2 ? { color: '#ffd600', width: 2.6 } : w === 3 ? { color: '#00e5ff', width: 2.2 } : w ? { color: '#ff8a00', width: 2 } : { color: 'rgba(30,30,30,.8)', width: 0.9 }) }); cache.set(k, s); } return s; } });
     if (imgFail.length) r.shapeLog = (r.shapeLog || []).concat(imgFail);
     let nShown = 0; for (let f = 0; f < r.n; f++) if (r.code[f] !== -2) nShown++;
-    S.results[o.id] = { ...r, nShown, areaLabel: o.area && AREA_TYPES[o.area.type] ? `${AREA_TYPES[o.area.type].short} ${areaLabel(o)}` : '', baseId: base.id, layer, colors, geoms, chkN, rulesAll: cp.rulesAll, critUsed: JSON.parse(JSON.stringify(o.criteria || [])), at: new Date(), crs: S.crs, rulesSig: rulesSig(o), baseName: base.name, inputs };
+    S.results[o.id] = { ...r, nShown, areaLabel: (o.area && AREA_TYPES[o.area.type] ? `${AREA_TYPES[o.area.type].short} ${areaLabel(o)}` : '') + (partial ? `${o.area ? ' · ' : ''}중지 시점까지(판독 ${partial.done}/${partial.total} 구역)` : ''), partial: partial ? { done: partial.done, total: partial.total } : null, baseId: base.id, layer, colors, geoms, chkN, rulesAll: cp.rulesAll, critUsed: JSON.parse(JSON.stringify(o.criteria || [])), at: new Date(), crs: S.crs, rulesSig: rulesSig(o), baseName: base.name, inputs };
     o.run = null;
     showResultLayer();
     const changed = r.meta ? Array.from(r.meta.src).filter((v, i) => v < 0 && r.code[i] !== -2).length : 0, movedN = mvd ? Array.from(mvd).filter((v, i) => v && !(isNew && isNew[i] < 0) && r.code[i] !== -2).length : 0;
@@ -3454,8 +3501,8 @@ async function runOutput(o, opt) {
       liveMsg(`<b>경계 고침 완료</b> — 과거지도를 잘라 새로 넣은 폴리곤 ${fmt(changed)}개(노란 테두리)${movedN ? ` · 경계선을 옮긴 폴리곤 ${fmt(movedN)}개(청록 테두리)` : ''} · 결과 폴리곤 ${fmt(feats.length)}개`);
       setTimeout(() => { liveClear(); }, 6000); setTimeout(() => liveMsg(''), 20000);
     } else liveMsg('');
-    clearTask(`${o.short || o.name} 도출 완료 (${((Date.now() - t0) / 1000).toFixed(1)}초)`);
-    toast(`${o.name} 도출 완료 — ${fmt(feats.length)}개 폴리곤`);
+    clearTask(`${o.short || o.name} ${partial ? '중지한 곳까지 결과 완료' : '도출 완료'} (${((Date.now() - t0) / 1000).toFixed(1)}초)`);
+    toast(partial ? `${o.name} — 중지한 곳까지(판독 ${fmt(partial.done)}/${fmt(partial.total)} 구역) 결과 ${fmt(feats.length)}개 폴리곤 · 아래 내려받기로 받을 수 있음` : `${o.name} 도출 완료 — ${fmt(feats.length)}개 폴리곤`);
   } catch (e) { console.error(e); o.run = null; clearTask('도출 실패'); liveMsg(''); toast('결과 도출 실패: ' + e.message, 'err'); }
   renderAll();
 }
